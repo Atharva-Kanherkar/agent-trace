@@ -28,6 +28,7 @@ Updated: 2026-02-23
    - Migration manifest and migration-file validator.
    - Baseline ClickHouse and PostgreSQL SQL migrations.
    - Strict ClickHouse `agent_events` row mapper and writer abstraction.
+   - Strict PostgreSQL writers for `sessions`, `commits`, and `instance_settings`.
 7. `@agent-trace/runtime`
    - In-memory runtime assembly for collector + api.
    - Process-level HTTP servers on `:8317` (collector) and `:8318` (api).
@@ -71,6 +72,8 @@ Feature set complete after Stage A:
    - Events writer for `agent_events` complete.
    - Session aggregate writers/materialized flow pending.
 2. PostgreSQL writer implementation (sessions, commits, settings).
+   - Core typed writer implementation complete.
+   - Real DB client adapter and collector wiring pending.
 3. Collector projection pipeline to update session traces as events arrive.
 
 Feature set complete after Stage B:

@@ -44,3 +44,55 @@ export interface ClickHouseWriteSummary {
   readonly tableName: string;
   readonly writtenRows: number;
 }
+
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
+export interface JsonObject {
+  readonly [key: string]: JsonValue;
+}
+export interface JsonArray extends ReadonlyArray<JsonValue> {}
+
+export interface PostgresSessionRow {
+  readonly session_id: string;
+  readonly user_id: string;
+  readonly started_at: string;
+  readonly ended_at: string | null;
+  readonly status: "active" | "completed";
+  readonly project_path: string | null;
+  readonly git_repo: string | null;
+  readonly git_branch: string | null;
+}
+
+export interface PostgresCommitRow {
+  readonly sha: string;
+  readonly session_id: string;
+  readonly prompt_id: string | null;
+  readonly message: string | null;
+  readonly lines_added: number;
+  readonly lines_removed: number;
+  readonly chain_cost_usd: number;
+  readonly committed_at: string | null;
+}
+
+export interface PostgresInstanceSettingRow {
+  readonly key: string;
+  readonly value: JsonValue;
+}
+
+export interface PostgresSessionPersistenceClient {
+  upsertSessions(rows: readonly PostgresSessionRow[]): Promise<void>;
+  upsertCommits(rows: readonly PostgresCommitRow[]): Promise<void>;
+}
+
+export interface PostgresSettingsPersistenceClient {
+  upsertInstanceSettings(rows: readonly PostgresInstanceSettingRow[]): Promise<void>;
+}
+
+export interface PostgresSessionWriterSummary {
+  readonly writtenSessions: number;
+  readonly writtenCommits: number;
+}
+
+export interface PostgresSettingsWriterSummary {
+  readonly writtenSettings: number;
+}
