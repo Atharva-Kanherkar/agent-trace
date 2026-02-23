@@ -1,4 +1,5 @@
 export * from "./envelope-service";
+export * from "./git-enrichment";
 export * from "./handler";
 export * from "./http";
 export * from "./otel-grpc-receiver";

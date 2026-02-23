@@ -3,6 +3,7 @@ import { validateEventEnvelope } from "../../schema/src/validators";
 import { createCollectorService } from "./service";
 import { InMemoryCollectorStore } from "./store";
 import { createTranscriptIngestionProcessor } from "./transcript-ingestion";
+import { enrichCollectorEventWithGitMetadata } from "./git-enrichment";
 import type {
   CollectorAcceptedEventProcessor,
   CollectorEnvelopeEvent,
@@ -30,6 +31,19 @@ function toCollectorValidationResult(input: unknown): CollectorValidationResult<
   };
 }
 
+function toEnrichedValidationResult(input: unknown): CollectorValidationResult<CollectorEnvelopeEvent> {
+  const validation = toCollectorValidationResult(input);
+  if (!validation.ok) {
+    return validation;
+  }
+
+  return {
+    ok: true,
+    value: enrichCollectorEventWithGitMetadata(validation.value),
+    errors: []
+  };
+}
+
 function toCollectorEnvelopeEvent(event: EventEnvelope<TranscriptEventPayload>): CollectorEnvelopeEvent {
   return event as CollectorEnvelopeEvent;
 }
@@ -38,13 +52,14 @@ async function ingestEventIntoDependencies(
   event: CollectorEnvelopeEvent,
   dependencies: CollectorHandlerDependencies<CollectorEnvelopeEvent>
 ): Promise<void> {
-  const ingest = dependencies.store.ingest(event, event.eventId);
+  const enrichedEvent = enrichCollectorEventWithGitMetadata(event);
+  const ingest = dependencies.store.ingest(enrichedEvent, enrichedEvent.eventId);
   if (!ingest.accepted) {
     return;
   }
 
   if (dependencies.onAcceptedEvent !== undefined) {
-    await dependencies.onAcceptedEvent(event);
+    await dependencies.onAcceptedEvent(enrichedEvent);
   }
 }
 
@@ -101,7 +116,7 @@ export function createEnvelopeCollectorService(
   const processor = combineProcessors(processors);
   const dependencies: CollectorHandlerDependencies<CollectorEnvelopeEvent> = {
     startedAtMs: options.startedAtMs ?? Date.now(),
-    validateEvent: toCollectorValidationResult,
+    validateEvent: toEnrichedValidationResult,
     getEventId: (event: CollectorEnvelopeEvent): string => event.eventId,
     store,
     ...(options.onAcceptedEvent !== undefined ? { onAcceptedEvent: options.onAcceptedEvent } : {})

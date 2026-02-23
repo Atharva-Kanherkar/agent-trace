@@ -19,6 +19,7 @@ Updated: 2026-02-23
    - Session-end transcript ingestion processor (`createTranscriptIngestionProcessor`) with sink integration.
    - OTEL export normalizer foundation (`normalizeOtelExport`) for Layer 1 event extraction.
    - OTEL gRPC receiver module (`startOtelGrpcReceiver`) with export processing stats.
+   - Hook git-enrichment foundation for bash/git events (`commit_sha`, `commit_message`, `git_branch` inference).
    - Standalone collector server starter (`startStandaloneCollector`) wiring HTTP + OTEL receiver.
 3. `@agent-trace/api`
    - Typed query handler (`/health`, `/v1/sessions`, `/v1/sessions/:id`, `/timeline`).
@@ -114,6 +115,9 @@ Feature set complete after Stage A:
 4. Auto-migrations:
    - Platform migration runner complete.
    - Runtime DB mode auto-migration on startup complete.
+5. Git enrichment:
+   - Collector hook git metadata inference foundation complete.
+   - Post-hoc repository diff/stat enrichment flow pending.
 
 Feature set complete after Stage B:
 

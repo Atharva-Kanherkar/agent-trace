@@ -93,6 +93,41 @@ test("envelope collector service ingests parsed transcript events by default", a
   fs.rmSync(path.dirname(transcriptPath), { recursive: true, force: true });
 });
 
+test("envelope collector service applies git enrichment before persistence", async () => {
+  const acceptedEvents: CollectorEnvelopeEvent[] = [];
+  const service = createEnvelopeCollectorService({
+    enableTranscriptIngestion: false,
+    onAcceptedEvent: (event): void => {
+      acceptedEvents.push(event);
+    }
+  });
+  const response = service.handleRaw({
+    method: "POST",
+    url: "/v1/hooks",
+    rawBody: JSON.stringify(
+      createEnvelope({
+        eventId: "evt_envelope_service_git_001",
+        payload: {
+          tool_name: "Bash",
+          command: "git commit -m \"feat: add enrichment\"",
+          stdout: "[main b7c8d9e] feat: add enrichment\n 1 file changed"
+        }
+      })
+    )
+  });
+
+  assert.equal(response.statusCode, 202);
+  await flushAsyncWork();
+
+  const stats = service.store.getStats();
+  assert.equal(stats.storedEvents, 1);
+  assert.equal(acceptedEvents.length, 1);
+  const payload = acceptedEvents[0]?.payload as Record<string, unknown>;
+  assert.equal(payload["commit_sha"], "b7c8d9e");
+  assert.equal(payload["commit_message"], "feat: add enrichment");
+  assert.equal(acceptedEvents[0]?.attributes?.["git_enriched"], "1");
+});
+
 test("envelope collector otel sink ingests normalized envelope events", async () => {
   const service = createEnvelopeCollectorService({
     enableTranscriptIngestion: false
