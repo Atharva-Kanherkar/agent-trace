@@ -83,4 +83,5 @@ export interface CollectorHandlerDependencies<TEvent> {
   readonly validateEvent: (input: unknown) => CollectorValidationResult<TEvent>;
   readonly getEventId: (event: TEvent) => string;
   readonly store: CollectorEventStore<TEvent>;
+  readonly onAcceptedEvent?: (event: TEvent) => void;
 }

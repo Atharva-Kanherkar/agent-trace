@@ -1,0 +1,32 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "scripts/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../schema"
+    },
+    {
+      "path": "../collector"
+    },
+    {
+      "path": "../api"
+    },
+    {
+      "path": "../cli"
+    }
+  ]
+}
+

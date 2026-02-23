@@ -72,6 +72,13 @@ export function handleCollectorRequest<TEvent>(
 
     const eventId = dependencies.getEventId(validation.value);
     const ingest = dependencies.store.ingest(validation.value, eventId);
+    if (ingest.accepted && dependencies.onAcceptedEvent !== undefined) {
+      try {
+        dependencies.onAcceptedEvent(validation.value);
+      } catch {
+        // Collector should not fail request handling if projection callback fails.
+      }
+    }
     return {
       statusCode: 202,
       payload: buildAcceptedPayload(ingest.accepted, ingest.deduped)
@@ -83,4 +90,3 @@ export function handleCollectorRequest<TEvent>(
     payload: buildErrorPayload("not found")
   };
 }
-

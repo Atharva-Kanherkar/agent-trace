@@ -4,4 +4,6 @@ coverage/
 .DS_Store
 *.log
 *.tsbuildinfo
-
+packages/runtime/api
+packages/runtime/collector
+packages/runtime/schema
