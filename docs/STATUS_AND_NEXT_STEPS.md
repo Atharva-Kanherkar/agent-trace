@@ -27,6 +27,11 @@ Updated: 2026-02-23
 6. `@agent-trace/platform`
    - Migration manifest and migration-file validator.
    - Baseline ClickHouse and PostgreSQL SQL migrations.
+7. `@agent-trace/runtime`
+   - In-memory runtime assembly for collector + api.
+   - Process-level HTTP servers on `:8317` (collector) and `:8318` (api).
+   - Runtime projector wiring from accepted events into session traces.
+   - CLI forward integration coverage against runtime collector.
 
 ## Quality gates
 
@@ -46,7 +51,7 @@ Root commands pass for all implemented modules:
 
 ## What is left (ordered)
 
-## Stage A: Runtime assembly (next)
+## Stage A: Runtime assembly (complete)
 
 1. Actual process-level service binaries:
    - collector server process on `:8317`
@@ -59,7 +64,7 @@ Feature set complete after Stage A:
 
 1. Local end-to-end demo flow without external DB.
 
-## Stage B: Persistence and projection
+## Stage B: Persistence and projection (next)
 
 1. ClickHouse writer implementation (events + aggregates).
 2. PostgreSQL writer implementation (sessions, commits, settings).
@@ -103,4 +108,3 @@ Target usage flow:
 6. Collector validates/deduplicates/persists.
 7. API serves session list, timeline, and metrics.
 8. Dashboard renders replay and cost analytics.
-

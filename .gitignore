@@ -5,5 +5,6 @@ coverage/
 *.log
 *.tsbuildinfo
 packages/runtime/api
+packages/runtime/cli
 packages/runtime/collector
 packages/runtime/schema
