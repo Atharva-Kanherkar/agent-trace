@@ -24,6 +24,7 @@ Updated: 2026-02-23
    - Typed query handler (`/health`, `/v1/sessions`, `/v1/sessions/:id`, `/timeline`).
    - In-memory session repository.
    - Raw HTTP adapter and Node HTTP handler creator.
+   - Standalone API server starter (`startApiServer`) with process CLI entrypoint.
 4. `@agent-trace/cli`
    - `init`, `status`, `hook-handler`.
    - Config file lifecycle in `~/.claude/agent-trace.json`.
@@ -103,7 +104,8 @@ Feature set complete after Stage A:
    - In-memory runtime projection + persistence orchestration complete.
    - DB-backed runtime composition complete.
    - Collector service wiring abstraction complete.
-   - Production deployment composition (collector + api + db process setup) pending.
+   - Standalone collector + standalone API process binaries complete.
+   - Production deployment composition with ClickHouse/PostgreSQL service graph pending.
 
 Feature set complete after Stage B:
 

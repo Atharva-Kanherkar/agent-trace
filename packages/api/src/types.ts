@@ -78,3 +78,16 @@ export interface ApiHandlerDependencies {
   readonly startedAtMs: number;
   readonly repository: ApiSessionRepository;
 }
+
+export interface ApiServerStartOptions {
+  readonly host?: string;
+  readonly port?: number;
+  readonly startedAtMs?: number;
+  readonly repository?: ApiSessionRepository;
+}
+
+export interface ApiServerHandle {
+  readonly address: string;
+  readonly dependencies: ApiHandlerDependencies;
+  close(): Promise<void>;
+}

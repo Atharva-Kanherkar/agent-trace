@@ -1,4 +1,4 @@
-import { handleApiRawHttpRequest, handleApiRequest, InMemorySessionRepository } from "../src";
+import { handleApiRawHttpRequest, handleApiRequest, InMemorySessionRepository, startApiServer } from "../src";
 import { createSampleTrace } from "../src/samples";
 import type { ApiHandlerDependencies } from "../src/types";
 
@@ -22,7 +22,7 @@ function createDependencies(): ApiHandlerDependencies {
   };
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const dependencies = createDependencies();
 
   const health = handleApiRequest(
@@ -89,9 +89,28 @@ function main(): void {
     throw new Error("api smoke failed: timeline endpoint failed");
   }
 
+  const server = await startApiServer({
+    host: "127.0.0.1",
+    port: 0,
+    startedAtMs: dependencies.startedAtMs,
+    repository: dependencies.repository
+  });
+  try {
+    const serverHealth = await fetch(`http://${server.address}/health`);
+    if (serverHealth.status !== 200) {
+      throw new Error("api smoke failed: standalone server health check failed");
+    }
+  } finally {
+    await server.close();
+  }
+
   console.log("api manual smoke passed");
   console.log(`sessionId=${detail.payload.session.sessionId}`);
   console.log(`timelineEvents=${timeline.payload.timeline.length}`);
+  console.log("standaloneServerHealth=ok");
 }
 
-main();
+void main().catch((error: unknown) => {
+  process.stderr.write(`${String(error)}\n`);
+  process.exit(1);
+});
