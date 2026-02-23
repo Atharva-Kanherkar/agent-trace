@@ -36,11 +36,11 @@ services:
       retries: 10
       start_period: 10s
 
-  runtime:
+  collector:
     build:
       context: ..
       dockerfile: docker/runtime.Dockerfile
-    container_name: agent-trace-runtime
+    container_name: agent-trace-collector
     environment:
       RUNTIME_HOST: "0.0.0.0"
       COLLECTOR_PORT: "8317"
@@ -53,8 +53,31 @@ services:
       POSTGRES_CONNECTION_STRING: "postgres://agent_trace:agent_trace@postgres:5432/agent_trace"
     ports:
       - "8317:8317"
-      - "8318:8318"
       - "4717:4717"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/runtime.Dockerfile
+    container_name: agent-trace-api
+    environment:
+      RUNTIME_HOST: "0.0.0.0"
+      COLLECTOR_PORT: "8317"
+      API_PORT: "8318"
+      OTEL_GRPC_ADDRESS: "0.0.0.0:4717"
+      CLICKHOUSE_URL: "http://clickhouse:8123"
+      CLICKHOUSE_USERNAME: "default"
+      CLICKHOUSE_PASSWORD: "agent_trace"
+      CLICKHOUSE_DATABASE: "agent_trace"
+      POSTGRES_CONNECTION_STRING: "postgres://agent_trace:agent_trace@postgres:5432/agent_trace"
+    ports:
+      - "8318:8318"
     depends_on:
       clickhouse:
         condition: service_healthy
@@ -70,11 +93,11 @@ services:
     environment:
       DASHBOARD_HOST: "0.0.0.0"
       DASHBOARD_PORT: "3100"
-      DASHBOARD_API_BASE_URL: "http://runtime:8318"
+      DASHBOARD_API_BASE_URL: "http://api:8318"
     ports:
       - "3100:3100"
     depends_on:
-      runtime:
+      api:
         condition: service_started
     restart: unless-stopped
 

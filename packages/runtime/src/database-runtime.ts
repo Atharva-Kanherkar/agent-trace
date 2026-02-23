@@ -19,6 +19,17 @@ const defaultFactories: RuntimeDatabaseClientFactories = {
   createPostgresClient: (options): RuntimeClosablePostgresClient => createPostgresPgPersistenceClient(options)
 };
 
+function normalizeSyncIntervalMs(input: number | undefined): number {
+  if (typeof input !== "number" || !Number.isFinite(input)) {
+    return 5000;
+  }
+  const normalized = Math.trunc(input);
+  if (normalized < 500) {
+    return 500;
+  }
+  return normalized;
+}
+
 async function hydrateRuntimeFromClickHouse(
   runtime: InMemoryRuntime,
   clickHouseClient: RuntimeClosableClickHouseClient,
@@ -75,17 +86,38 @@ export function createDatabaseBackedRuntime(
     ...(options.startedAtMs !== undefined ? { startedAtMs: options.startedAtMs } : {}),
     persistence
   });
-  const hydratedSessionTraces =
-    options.hydrateFromClickHouse === false
-      ? Promise.resolve(0)
-      : hydrateRuntimeFromClickHouse(runtime, clickHouseClient, options.bootstrapSessionTraceLimit).catch(
-          () => 0
-        );
+  const hydrationEnabled = options.hydrateFromClickHouse !== false;
+  const syncIntervalMs = normalizeSyncIntervalMs(options.sessionTraceSyncIntervalMs);
+  let syncInFlight = false;
+  const syncSessionTraces = async (): Promise<number> => {
+    if (!hydrationEnabled || syncInFlight) {
+      return 0;
+    }
+
+    syncInFlight = true;
+    try {
+      return await hydrateRuntimeFromClickHouse(runtime, clickHouseClient, options.bootstrapSessionTraceLimit);
+    } catch {
+      return 0;
+    } finally {
+      syncInFlight = false;
+    }
+  };
+
+  const hydratedSessionTraces = syncSessionTraces();
+  const syncInterval = hydrationEnabled
+    ? setInterval(() => {
+        void syncSessionTraces();
+      }, syncIntervalMs)
+    : undefined;
 
   return {
     runtime,
     hydratedSessionTraces,
     close: async (): Promise<void> => {
+      if (syncInterval !== undefined) {
+        clearInterval(syncInterval);
+      }
       await closeClients(clickHouseClient, postgresClient);
     }
   };

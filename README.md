@@ -41,14 +41,15 @@ npm run test:manual
 
 ## Docker compose (foundation)
 
-Current compose stack (runtime + storage):
+Current compose stack (split services + storage):
 
 1. ClickHouse (`8123`, `9000`)
 2. PostgreSQL (`5432`)
-3. Runtime process (`collector` on `8317`, `api` on `8318`, OTEL gRPC on `4717`)
-4. Dashboard web server (`3100`)
+3. Collector service (`8317`, OTEL gRPC on `4717`)
+4. API service (`8318`)
+5. Dashboard web server (`3100`)
 
-In DB-backed mode, runtime applies ClickHouse and PostgreSQL migrations on startup before exposing endpoints.
+Collector/API services are currently runtime-backed. In DB-backed mode they apply ClickHouse and PostgreSQL migrations on startup before exposing endpoints.
 
 Run:
 

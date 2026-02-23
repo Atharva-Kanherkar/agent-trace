@@ -157,7 +157,8 @@ Feature set complete after Stage C:
    - full Next.js app shell and richer replay UI pending.
 2. Docker Compose service graph:
    - runtime + dashboard + ClickHouse + PostgreSQL compose foundation complete.
-   - split collector/api/dashboard compose topology pending.
+   - split collector/api/dashboard compose topology complete (runtime-backed services).
+   - dedicated per-service process binaries in compose topology pending.
 3. Operational docs and startup scripts.
 
 Feature set complete after Stage D:

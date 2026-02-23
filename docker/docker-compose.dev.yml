@@ -8,10 +8,19 @@ services:
       npm run --workspace @agent-trace/dashboard build &&
       node packages/dashboard/dist/src/cli.js"
 
-  runtime:
+  collector:
     volumes:
       - ..:/app
-      - runtime_node_modules:/app/node_modules
+      - collector_node_modules:/app/node_modules
+    command: >
+      bash -lc "npm ci &&
+      npm run --workspace @agent-trace/runtime build &&
+      node packages/runtime/dist/src/cli.js"
+
+  api:
+    volumes:
+      - ..:/app
+      - api_node_modules:/app/node_modules
     command: >
       bash -lc "npm ci &&
       npm run --workspace @agent-trace/runtime build &&
@@ -19,4 +28,5 @@ services:
 
 volumes:
   dashboard_node_modules:
-  runtime_node_modules:
+  collector_node_modules:
+  api_node_modules:
