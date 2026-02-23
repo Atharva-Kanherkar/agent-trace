@@ -1,4 +1,9 @@
-import { handleCollectorRawHttpRequest, handleCollectorRequest, InMemoryCollectorStore } from "../src";
+import {
+  createCollectorService,
+  handleCollectorRawHttpRequest,
+  handleCollectorRequest,
+  InMemoryCollectorStore
+} from "../src";
 import { createSampleCollectorEvent, type SampleCollectorEvent } from "../src/samples";
 import type { CollectorHandlerDependencies, CollectorValidationResult } from "../src/types";
 
@@ -108,9 +113,31 @@ function main(): void {
     throw new Error("collector smoke failed: unexpected stats counters");
   }
 
+  const service = createCollectorService({
+    dependencies: createDependencies(new InMemoryCollectorStore<SampleCollectorEvent>()),
+    processor: {
+      processAcceptedEvent: async (): Promise<void> => {
+        // no-op smoke processor
+      }
+    }
+  });
+  const serviceResponse = service.handleRaw({
+    method: "POST",
+    url: "/v1/hooks",
+    rawBody: JSON.stringify(
+      createSampleCollectorEvent({
+        eventId: "evt_manual_service_001"
+      })
+    )
+  });
+  if (serviceResponse.statusCode !== 202) {
+    throw new Error("collector smoke failed: expected service ingest to be accepted");
+  }
+
   console.log("collector manual smoke passed");
   console.log(`storedEvents=${stats.payload.stats.storedEvents}`);
   console.log(`dedupedEvents=${stats.payload.stats.dedupedEvents}`);
+  console.log(`serviceAcceptedEvents=${service.getProcessingStats().acceptedEvents}`);
 }
 
 main();

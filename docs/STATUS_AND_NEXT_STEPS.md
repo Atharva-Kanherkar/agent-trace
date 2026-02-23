@@ -13,6 +13,7 @@ Updated: 2026-02-23
    - Typed ingest handler (`/health`, `/v1/hooks`, `/v1/hooks/stats`).
    - In-memory deduplication store.
    - Raw HTTP adapter and Node HTTP handler creator.
+   - Collector service wrapper for accepted-event processing pipeline + processing health stats.
 3. `@agent-trace/api`
    - Typed query handler (`/health`, `/v1/sessions`, `/v1/sessions/:id`, `/timeline`).
    - In-memory session repository.
@@ -87,7 +88,8 @@ Feature set complete after Stage A:
 3. Collector projection pipeline to update session traces as events arrive.
    - In-memory runtime projection + persistence orchestration complete.
    - DB-backed runtime composition complete.
-   - Production collector service wiring pending.
+   - Collector service wiring abstraction complete.
+   - Production deployment composition (collector + api + db process setup) pending.
 
 Feature set complete after Stage B:
 

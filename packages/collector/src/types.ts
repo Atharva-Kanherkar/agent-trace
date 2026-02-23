@@ -85,3 +85,13 @@ export interface CollectorHandlerDependencies<TEvent> {
   readonly store: CollectorEventStore<TEvent>;
   readonly onAcceptedEvent?: (event: TEvent) => void | Promise<void>;
 }
+
+export interface CollectorAcceptedEventProcessor<TEvent> {
+  processAcceptedEvent(event: TEvent): Promise<void>;
+}
+
+export interface CollectorProcessingStats {
+  readonly acceptedEvents: number;
+  readonly processingFailures: number;
+  readonly lastProcessingFailure?: string;
+}
