@@ -119,6 +119,7 @@ export interface HookPayload {
 export interface HookGitContextRequest {
   readonly repositoryPath?: string;
   readonly includeDiffStats: boolean;
+  readonly diffSource?: "head_commit" | "working_tree";
 }
 
 export interface HookGitRepositoryState {

@@ -121,7 +121,8 @@ Feature set complete after Stage A:
    - Collector hook git metadata inference foundation complete.
    - Collector stdout diff/stat enrichment foundation complete (lines/files metadata from git output).
    - CLI hook-handler local git-context enrichment foundation complete (branch/head/diff stats).
-   - Post-hoc repository diff/stat enrichment flow pending.
+   - CLI SessionEnd post-hoc working-tree diff/stat enrichment foundation complete.
+   - Per-session baseline diff attribution (start-vs-end exact delta) pending.
 
 Feature set complete after Stage B:
 

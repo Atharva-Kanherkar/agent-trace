@@ -95,6 +95,15 @@ function isGitBashPayload(payload: HookPayload): boolean {
   return toolName.toLowerCase() === "bash" && command.trim().startsWith("git ");
 }
 
+function isSessionEndEvent(payload: HookPayload): boolean {
+  const eventType = pickEventType(payload).toLowerCase();
+  return eventType === "session_end" || eventType === "sessionend";
+}
+
+function shouldAttemptGitEnrichment(payload: HookPayload): boolean {
+  return isGitBashPayload(payload) || isSessionEndEvent(payload);
+}
+
 function parseCommitMessage(command: string): string | undefined {
   const regex = /(?:^|\s)-m\s+["']([^"']+)["']/;
   const match = command.match(regex);
@@ -295,9 +304,12 @@ export class ShellHookGitContextProvider implements HookGitContextProvider {
   public readContext(request: HookGitContextRequest): HookGitRepositoryState | undefined {
     const branch = runGitCommand(["rev-parse", "--abbrev-ref", "HEAD"], request.repositoryPath);
     const headSha = runGitCommand(["rev-parse", "HEAD"], request.repositoryPath);
-    const diffStatsRaw = request.includeDiffStats
-      ? runGitCommand(["show", "--numstat", "--format="], request.repositoryPath)
-      : undefined;
+    const diffStatsRaw =
+      request.includeDiffStats && request.diffSource === "working_tree"
+        ? runGitCommand(["diff", "--numstat", "HEAD"], request.repositoryPath)
+        : request.includeDiffStats
+          ? runGitCommand(["show", "--numstat", "--format="], request.repositoryPath)
+          : undefined;
     const diffStats = diffStatsRaw === undefined ? undefined : parseNumstatOutput(diffStatsRaw);
 
     if (
@@ -327,7 +339,7 @@ function enrichHookPayloadWithGitContext(
   readonly payload: HookPayload;
   readonly enriched: boolean;
 } {
-  if (!isGitBashPayload(payload)) {
+  if (!shouldAttemptGitEnrichment(payload)) {
     return {
       payload,
       enriched: false
@@ -336,23 +348,18 @@ function enrichHookPayloadWithGitContext(
 
   const record = payload as Record<string, unknown>;
   const command = pickCommand(payload);
-  if (command === undefined) {
-    return {
-      payload,
-      enriched: false
-    };
-  }
-
-  const includeDiffStats = command.includes(" commit ");
+  const includeDiffStats = (command !== undefined && command.includes(" commit ")) || isSessionEndEvent(payload);
+  const diffSource = isSessionEndEvent(payload) ? "working_tree" : "head_commit";
   const repositoryPath = pickRepositoryPath(payload);
   const contextRequest: HookGitContextRequest = {
     includeDiffStats,
+    ...(includeDiffStats ? { diffSource } : {}),
     ...(repositoryPath !== undefined ? { repositoryPath } : {})
   };
   const gitContext = provider.readContext(contextRequest);
   const patch: Record<string, unknown> = {};
 
-  const commitMessage = parseCommitMessage(command);
+  const commitMessage = command === undefined ? undefined : parseCommitMessage(command);
   const existingCommitMessage = readString(record, "commit_message") ?? readString(record, "commitMessage");
   if (existingCommitMessage === undefined && commitMessage !== undefined) {
     patch["commit_message"] = commitMessage;

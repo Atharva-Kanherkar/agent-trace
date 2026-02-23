@@ -306,8 +306,49 @@ test("runHookHandler enriches git bash events with local git context", () => {
 
   assert.deepEqual(provider.lastRequest, {
     repositoryPath: "/tmp/repo",
-    includeDiffStats: true
+    includeDiffStats: true,
+    diffSource: "head_commit"
   });
 
   fs.rmSync(configDir, { recursive: true, force: true });
+});
+
+test("runHookHandler enriches session_end events with working tree git stats", () => {
+  const provider = new MockGitContextProvider({
+    branch: "main",
+    headSha: "c0ffee123",
+    linesAdded: 14,
+    linesRemoved: 6,
+    filesChanged: ["src/runtime.ts", "README.md"]
+  });
+
+  const result = runHookHandler(
+    {
+      rawStdin: JSON.stringify({
+        event: "session_end",
+        session_id: "sess_session_end_001",
+        project_path: "/tmp/repo"
+      }),
+      nowIso: "2026-02-23T12:30:00.000Z"
+    },
+    new FileCliConfigStore(),
+    provider
+  );
+
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    const payload = result.envelope.payload as Record<string, unknown>;
+    assert.equal(payload["git_branch"], "main");
+    assert.equal(payload["commit_sha"], "c0ffee123");
+    assert.equal(payload["lines_added"], 14);
+    assert.equal(payload["lines_removed"], 6);
+    assert.deepEqual(payload["files_changed"], ["src/runtime.ts", "README.md"]);
+    assert.equal(result.envelope.attributes?.["git_enriched"], "1");
+  }
+
+  assert.deepEqual(provider.lastRequest, {
+    repositoryPath: "/tmp/repo",
+    includeDiffStats: true,
+    diffSource: "working_tree"
+  });
 });
