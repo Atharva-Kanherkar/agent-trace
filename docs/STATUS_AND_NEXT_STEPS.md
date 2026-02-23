@@ -155,6 +155,7 @@ Feature set complete after Stage C:
 1. Dashboard surface:
    - standalone dashboard web shell + API bridge endpoint complete.
    - dashboard sessions SSE bridge (`/api/sessions/stream`) complete.
+   - dashboard session replay bridge (`/api/session/:id`) + timeline panel complete.
    - full Next.js app shell and richer replay UI pending.
 2. Docker Compose service graph:
    - runtime + dashboard + ClickHouse + PostgreSQL compose foundation complete.

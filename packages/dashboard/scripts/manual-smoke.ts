@@ -68,6 +68,29 @@ async function main(): Promise<void> {
           totalCostUsd: 0.42
         }
       ]
+    },
+    sessionReplayProvider: {
+      fetchSession: async (sessionId) => {
+        if (sessionId !== "sess_dashboard_smoke") {
+          return undefined;
+        }
+        return {
+          sessionId: "sess_dashboard_smoke",
+          startedAt: "2026-02-23T10:00:00.000Z",
+          metrics: {
+            promptCount: 1,
+            toolCallCount: 2,
+            totalCostUsd: 0.42
+          },
+          timeline: [
+            {
+              id: "evt_dashboard_smoke_001",
+              type: "tool_result",
+              timestamp: "2026-02-23T10:00:02.000Z"
+            }
+          ]
+        };
+      }
     }
   });
   try {
@@ -90,6 +113,11 @@ async function main(): Promise<void> {
       throw new Error("dashboard smoke failed: sessions stream event missing");
     }
     await reader.cancel();
+
+    const replay = await fetch(`http://${dashboard.address}/api/session/sess_dashboard_smoke`);
+    if (replay.status !== 200) {
+      throw new Error("dashboard smoke failed: session replay endpoint failed");
+    }
   } finally {
     await dashboard.close();
   }

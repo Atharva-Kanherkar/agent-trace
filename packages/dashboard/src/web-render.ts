@@ -185,10 +185,30 @@ export function renderDashboardHtml(options: DashboardRenderOptions = {}): strin
               <th>Repo</th>
               <th>Started</th>
               <th>Cost</th>
+              <th>Replay</th>
             </tr>
           </thead>
           <tbody id="sessions-body">
-            <tr><td colspan="5">Loading sessions...</td></tr>
+            <tr><td colspan="6">Loading sessions...</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <header>Session Replay</header>
+        <div id="replay-meta" class="status">Select a session to inspect timeline events.</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Cost</th>
+              <th>Prompt</th>
+            </tr>
+          </thead>
+          <tbody id="replay-body">
+            <tr><td colspan="5">No session selected.</td></tr>
           </tbody>
         </table>
       </section>
@@ -201,6 +221,9 @@ export function renderDashboardHtml(options: DashboardRenderOptions = {}): strin
       const sessionsMetric = document.getElementById("metric-sessions");
       const costMetric = document.getElementById("metric-cost");
       const latestMetric = document.getElementById("metric-latest");
+      const replayMeta = document.getElementById("replay-meta");
+      const replayBody = document.getElementById("replay-body");
+      let selectedSessionId = null;
 
       function formatMoney(value) {
         return "$" + value.toFixed(2);
@@ -214,12 +237,104 @@ export function renderDashboardHtml(options: DashboardRenderOptions = {}): strin
         }
       }
 
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll("\"", "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function setReplayPlaceholder(message) {
+        replayBody.innerHTML = "<tr><td colspan=\\"5\\">" + escapeHtml(message) + "</td></tr>";
+      }
+
+      function renderSessionReplay(session) {
+        if (typeof session !== "object" || session === null) {
+          replayMeta.classList.add("error");
+          replayMeta.textContent = "Replay payload is invalid.";
+          setReplayPlaceholder("Replay payload is invalid.");
+          return;
+        }
+
+        const timeline = Array.isArray(session.timeline) ? session.timeline : [];
+        const promptCount = typeof session.metrics?.promptCount === "number" ? session.metrics.promptCount : 0;
+        const toolCallCount = typeof session.metrics?.toolCallCount === "number" ? session.metrics.toolCallCount : 0;
+        const totalCostUsd = typeof session.metrics?.totalCostUsd === "number" ? session.metrics.totalCostUsd : 0;
+        replayMeta.classList.remove("error");
+        replayMeta.textContent = "Session " + session.sessionId + " | prompts " + promptCount
+          + " | tools " + toolCallCount + " | cost " + formatMoney(totalCostUsd);
+
+        if (timeline.length === 0) {
+          setReplayPlaceholder("No timeline events for this session.");
+          return;
+        }
+
+        const rows = timeline.map((event) => {
+          const timestamp = typeof event.timestamp === "string" ? formatDate(event.timestamp) : "-";
+          const type = typeof event.type === "string" ? event.type : "-";
+          const eventStatus = typeof event.status === "string" ? event.status : "-";
+          const cost = typeof event.costUsd === "number" ? formatMoney(event.costUsd) : "-";
+          const prompt = typeof event.promptId === "string" ? event.promptId : "-";
+          return "<tr>"
+            + "<td>" + escapeHtml(timestamp) + "</td>"
+            + "<td>" + escapeHtml(type) + "</td>"
+            + "<td>" + escapeHtml(eventStatus) + "</td>"
+            + "<td>" + escapeHtml(cost) + "</td>"
+            + "<td>" + escapeHtml(prompt) + "</td>"
+            + "</tr>";
+        }).join("");
+        replayBody.innerHTML = rows;
+      }
+
+      async function loadSessionReplay(sessionId) {
+        selectedSessionId = sessionId;
+        try {
+          const response = await fetch("/api/session/" + encodeURIComponent(sessionId));
+          if (response.status === 404) {
+            replayMeta.classList.add("error");
+            replayMeta.textContent = "Session replay not found.";
+            setReplayPlaceholder("Session replay not found.");
+            return;
+          }
+          if (!response.ok) {
+            throw new Error("session replay bridge failed with status " + response.status);
+          }
+          const payload = await response.json();
+          if (payload?.status !== "ok" || typeof payload.session !== "object") {
+            throw new Error("unexpected replay payload format");
+          }
+          renderSessionReplay(payload.session);
+        } catch (error) {
+          replayMeta.classList.add("error");
+          replayMeta.textContent = String(error);
+          setReplayPlaceholder("Failed to load replay.");
+        }
+      }
+
+      function bindReplayButtons() {
+        const buttons = sessionsBody.querySelectorAll(".replay-button");
+        buttons.forEach((button) => {
+          button.addEventListener("click", () => {
+            const sessionId = button.getAttribute("data-session-id");
+            if (sessionId === null || sessionId.length === 0) {
+              return;
+            }
+            void loadSessionReplay(sessionId);
+          });
+        });
+      }
+
       function renderSessions(sessions) {
         if (!Array.isArray(sessions) || sessions.length === 0) {
-          sessionsBody.innerHTML = "<tr><td colspan=\\"5\\">No sessions yet.</td></tr>";
+          sessionsBody.innerHTML = "<tr><td colspan=\\"6\\">No sessions yet.</td></tr>";
           sessionsMetric.textContent = "0";
           costMetric.textContent = "$0.00";
           latestMetric.textContent = "-";
+          replayMeta.classList.remove("error");
+          replayMeta.textContent = "Select a session to inspect timeline events.";
+          setReplayPlaceholder("No session selected.");
           return;
         }
 
@@ -227,14 +342,18 @@ export function renderDashboardHtml(options: DashboardRenderOptions = {}): strin
           const repo = session.gitRepo ?? "-";
           const cost = typeof session.totalCostUsd === "number" ? session.totalCostUsd : 0;
           return "<tr>"
-            + "<td>" + session.sessionId + "</td>"
-            + "<td>" + session.userId + "</td>"
-            + "<td>" + repo + "</td>"
-            + "<td>" + formatDate(session.startedAt) + "</td>"
-            + "<td>" + formatMoney(cost) + "</td>"
+            + "<td>" + escapeHtml(session.sessionId) + "</td>"
+            + "<td>" + escapeHtml(session.userId) + "</td>"
+            + "<td>" + escapeHtml(repo) + "</td>"
+            + "<td>" + escapeHtml(formatDate(session.startedAt)) + "</td>"
+            + "<td>" + escapeHtml(formatMoney(cost)) + "</td>"
+            + "<td><button type=\\"button\\" class=\\"replay-button\\" data-session-id=\\""
+            + escapeHtml(session.sessionId)
+            + "\\">View</button></td>"
             + "</tr>";
         }).join("");
         sessionsBody.innerHTML = rows;
+        bindReplayButtons();
 
         const totalCost = sessions.reduce((sum, session) => {
           const value = typeof session.totalCostUsd === "number" ? session.totalCostUsd : 0;
@@ -249,6 +368,11 @@ export function renderDashboardHtml(options: DashboardRenderOptions = {}): strin
         sessionsMetric.textContent = String(sessions.length);
         costMetric.textContent = formatMoney(totalCost);
         latestMetric.textContent = latest === "-" ? "-" : formatDate(latest);
+
+        const selectedInList = selectedSessionId !== null && sessions.some((session) => session.sessionId === selectedSessionId);
+        if (!selectedInList && sessions[0]?.sessionId !== undefined) {
+          void loadSessionReplay(sessions[0].sessionId);
+        }
       }
 
       async function loadSessions() {
@@ -265,7 +389,7 @@ export function renderDashboardHtml(options: DashboardRenderOptions = {}): strin
           status.classList.remove("error");
           status.textContent = "Data source connected.";
         } catch (error) {
-          sessionsBody.innerHTML = "<tr><td colspan=\\"5\\">Failed to load sessions.</td></tr>";
+          sessionsBody.innerHTML = "<tr><td colspan=\\"6\\">Failed to load sessions.</td></tr>";
           status.classList.add("error");
           status.textContent = String(error);
         }
