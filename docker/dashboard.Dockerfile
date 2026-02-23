@@ -1,0 +1,16 @@
+FROM node:20-bullseye-slim
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY pnpm-workspace.yaml ./
+COPY tsconfig.base.json tsconfig.json ./
+COPY scripts ./scripts
+COPY packages ./packages
+
+RUN npm ci
+RUN npm run --workspace @agent-trace/dashboard build
+
+EXPOSE 3100
+
+CMD ["node", "packages/dashboard/dist/src/cli.js"]

@@ -1,8 +1,8 @@
-import { summarizeCost } from "../src";
+import { summarizeCost, startDashboardServer } from "../src";
 import { buildTimelinePromptGroups, summarizeProjects, toSessionList } from "../src/mappers";
 import { createDashboardSampleTrace } from "../src/samples";
 
-function main(): void {
+async function main(): Promise<void> {
   const traceOne = createDashboardSampleTrace({
     sessionId: "sess_manual_1",
     user: { id: "user_a" },
@@ -51,11 +51,42 @@ function main(): void {
     throw new Error("dashboard smoke failed: expected 2 project summaries");
   }
 
+  const dashboard = await startDashboardServer({
+    host: "127.0.0.1",
+    port: 0,
+    sessionsProvider: {
+      fetchSessions: async () => [
+        {
+          sessionId: "sess_dashboard_smoke",
+          userId: "user_dashboard_smoke",
+          gitRepo: "repo-smoke",
+          gitBranch: "main",
+          startedAt: "2026-02-23T10:00:00.000Z",
+          endedAt: null,
+          promptCount: 1,
+          toolCallCount: 2,
+          totalCostUsd: 0.42
+        }
+      ]
+    }
+  });
+  try {
+    const health = await fetch(`http://${dashboard.address}/health`);
+    if (health.status !== 200) {
+      throw new Error("dashboard smoke failed: standalone server health check failed");
+    }
+  } finally {
+    await dashboard.close();
+  }
+
   console.log("dashboard manual smoke passed");
   console.log(`sessionRows=${list.length}`);
   console.log(`projectSummaries=${projectSummary.length}`);
   console.log(`totalCostUsd=${costSummary.totalCostUsd}`);
+  console.log("standaloneServerHealth=ok");
 }
 
-main();
-
+void main().catch((error: unknown) => {
+  process.stderr.write(`${String(error)}\n`);
+  process.exit(1);
+});

@@ -36,6 +36,7 @@ Updated: 2026-02-23
 5. `@agent-trace/dashboard` (core only)
    - View-model mappers for sessions and timelines.
    - Cost and project summary analytics functions.
+   - Standalone dashboard web server (`startDashboardServer`) with session bridge endpoint.
 6. `@agent-trace/platform`
    - Migration manifest and migration-file validator.
    - Typed migration runner (`runPlatformMigrations`) for ClickHouse + PostgreSQL SQL files.
@@ -144,9 +145,11 @@ Feature set complete after Stage C:
 
 ## Stage D: Product surface completion
 
-1. Real dashboard app (Next.js UI shell + API integration).
+1. Dashboard surface:
+   - standalone dashboard web shell + API bridge endpoint complete.
+   - full Next.js app shell and richer replay UI pending.
 2. Docker Compose service graph:
-   - runtime + ClickHouse + PostgreSQL compose foundation complete.
+   - runtime + dashboard + ClickHouse + PostgreSQL compose foundation complete.
    - split collector/api/dashboard compose topology pending.
 3. Operational docs and startup scripts.
 
