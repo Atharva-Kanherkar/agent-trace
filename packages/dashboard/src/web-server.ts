@@ -10,6 +10,14 @@ import type {
   DashboardSessionsProvider
 } from "./web-types";
 
+function parsePathname(url: string): string {
+  try {
+    return new URL(url, "http://localhost").pathname;
+  } catch {
+    return url;
+  }
+}
+
 function toAddress(server: http.Server): string {
   const address = server.address();
   if (address === null) {
@@ -105,6 +113,70 @@ function sendHtml(res: http.ServerResponse, statusCode: number, html: string): v
   res.end(html);
 }
 
+async function writeSessionsSnapshot(
+  res: http.ServerResponse,
+  sessionsProvider: DashboardSessionsProvider
+): Promise<void> {
+  const sessions = await sessionsProvider.fetchSessions();
+  const payload: DashboardServerSessionsResponse = {
+    status: "ok",
+    count: sessions.length,
+    sessions
+  };
+
+  res.write("event: sessions\n");
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+function startSessionsSseBridge(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  sessionsProvider: DashboardSessionsProvider
+): void {
+  res.statusCode = 200;
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  let closed = false;
+  let writing = false;
+  const writeSnapshot = async (): Promise<void> => {
+    if (closed || writing) {
+      return;
+    }
+    writing = true;
+    try {
+      await writeSessionsSnapshot(res, sessionsProvider);
+    } catch (error: unknown) {
+      res.write("event: bridge_error\n");
+      res.write(`data: ${JSON.stringify({ message: String(error) })}\n\n`);
+    } finally {
+      writing = false;
+    }
+  };
+
+  void writeSnapshot();
+  const interval = setInterval(() => {
+    void writeSnapshot();
+  }, 2000);
+
+  const cleanup = (): void => {
+    if (closed) {
+      return;
+    }
+    closed = true;
+    clearInterval(interval);
+    if (!res.writableEnded) {
+      res.end();
+    }
+  };
+
+  req.on("close", cleanup);
+  res.on("close", cleanup);
+}
+
 export async function startDashboardServer(
   options: DashboardServerStartOptions = {}
 ): Promise<DashboardServerHandle> {
@@ -116,6 +188,7 @@ export async function startDashboardServer(
 
   const server = http.createServer((req, res) => {
     const url = req.url ?? "/";
+    const pathname = parsePathname(url);
     const method = req.method ?? "GET";
 
     if (method !== "GET") {
@@ -126,7 +199,7 @@ export async function startDashboardServer(
       return;
     }
 
-    if (url === "/health") {
+    if (pathname === "/health") {
       const payload: DashboardHealthResponse = {
         status: "ok",
         service: "dashboard",
@@ -136,7 +209,7 @@ export async function startDashboardServer(
       return;
     }
 
-    if (url === "/api/sessions") {
+    if (pathname === "/api/sessions") {
       void sessionsProvider
         .fetchSessions()
         .then((sessions) => {
@@ -156,7 +229,12 @@ export async function startDashboardServer(
       return;
     }
 
-    if (url === "/") {
+    if (pathname === "/api/sessions/stream") {
+      startSessionsSseBridge(req, res, sessionsProvider);
+      return;
+    }
+
+    if (pathname === "/") {
       sendHtml(res, 200, renderDashboardHtml());
       return;
     }

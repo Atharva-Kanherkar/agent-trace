@@ -75,6 +75,21 @@ async function main(): Promise<void> {
     if (health.status !== 200) {
       throw new Error("dashboard smoke failed: standalone server health check failed");
     }
+
+    const stream = await fetch(`http://${dashboard.address}/api/sessions/stream`);
+    if (stream.status !== 200) {
+      throw new Error("dashboard smoke failed: sessions stream endpoint failed");
+    }
+    const reader = stream.body?.getReader();
+    if (reader === undefined) {
+      throw new Error("dashboard smoke failed: stream body missing");
+    }
+    const firstChunk = await reader.read();
+    const firstText = new TextDecoder().decode(firstChunk.value ?? new Uint8Array());
+    if (!firstText.includes("event: sessions")) {
+      throw new Error("dashboard smoke failed: sessions stream event missing");
+    }
+    await reader.cancel();
   } finally {
     await dashboard.close();
   }

@@ -271,7 +271,49 @@ export function renderDashboardHtml(options: DashboardRenderOptions = {}): strin
         }
       }
 
-      void loadSessions();
+      function startLiveSessionsStream() {
+        if (typeof EventSource === "undefined") {
+          status.classList.remove("error");
+          status.textContent = "Live stream unavailable. Snapshot mode enabled.";
+          return;
+        }
+
+        status.classList.remove("error");
+        status.textContent = "Connecting to live session stream...";
+
+        const stream = new EventSource("/api/sessions/stream");
+        stream.addEventListener("sessions", (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            if (payload?.status !== "ok" || !Array.isArray(payload.sessions)) {
+              throw new Error("unexpected stream payload");
+            }
+            renderSessions(payload.sessions);
+            status.classList.remove("error");
+            status.textContent = "Live session stream connected.";
+          } catch (error) {
+            status.classList.add("error");
+            status.textContent = String(error);
+          }
+        });
+
+        stream.addEventListener("bridge_error", (event) => {
+          status.classList.add("error");
+          status.textContent = "Bridge error: " + event.data;
+        });
+
+        stream.onerror = () => {
+          status.classList.add("error");
+          status.textContent = "Live stream disconnected. Retrying...";
+        };
+      }
+
+      async function boot() {
+        await loadSessions();
+        startLiveSessionsStream();
+      }
+
+      void boot();
     </script>
   </body>
 </html>`;

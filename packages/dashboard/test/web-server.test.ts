@@ -41,6 +41,22 @@ test("startDashboardServer serves html, health, and sessions bridge", async () =
     };
     assert.equal(sessionsPayload.status, "ok");
     assert.equal(sessionsPayload.count, 1);
+
+    const streamResponse = await fetch(`http://${dashboard.address}/api/sessions/stream`);
+    assert.equal(streamResponse.status, 200);
+    assert.equal(streamResponse.headers.get("content-type")?.includes("text/event-stream"), true);
+    const reader = streamResponse.body?.getReader();
+    assert.notEqual(reader, undefined);
+    if (reader === undefined) {
+      assert.fail("expected readable stream body");
+    }
+
+    const firstChunk = await reader.read();
+    assert.equal(firstChunk.done, false);
+    const firstText = new TextDecoder().decode(firstChunk.value ?? new Uint8Array());
+    assert.equal(firstText.includes("event: sessions"), true);
+    assert.equal(firstText.includes("sess_dashboard_001"), true);
+    await reader.cancel();
   } finally {
     await dashboard.close();
   }
