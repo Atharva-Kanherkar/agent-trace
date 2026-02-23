@@ -120,6 +120,7 @@ Feature set complete after Stage A:
 5. Git enrichment:
    - Collector hook git metadata inference foundation complete.
    - Collector stdout diff/stat enrichment foundation complete (lines/files metadata from git output).
+   - CLI hook-handler local git-context enrichment foundation complete (branch/head/diff stats).
    - Post-hoc repository diff/stat enrichment flow pending.
 
 Feature set complete after Stage B:

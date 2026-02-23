@@ -5,7 +5,13 @@ import path from "node:path";
 import test from "node:test";
 
 import { FileCliConfigStore, parseArgs, runHookHandler, runHookHandlerAndForward, runInit, runStatus } from "../src";
-import type { CollectorHttpClient, CollectorHttpPostResult } from "../src/types";
+import type {
+  CollectorHttpClient,
+  CollectorHttpPostResult,
+  HookGitContextProvider,
+  HookGitContextRequest,
+  HookGitRepositoryState
+} from "../src/types";
 
 function createTempConfigDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "agent-trace-cli-test-"));
@@ -172,6 +178,20 @@ class MockCollectorClient implements CollectorHttpClient {
   }
 }
 
+class MockGitContextProvider implements HookGitContextProvider {
+  private readonly state: HookGitRepositoryState | undefined;
+  public lastRequest: HookGitContextRequest | undefined;
+
+  public constructor(state?: HookGitRepositoryState) {
+    this.state = state;
+  }
+
+  public readContext(request: HookGitContextRequest): HookGitRepositoryState | undefined {
+    this.lastRequest = request;
+    return this.state;
+  }
+}
+
 test("runHookHandlerAndForward sends envelope to collector client", async () => {
   const configDir = createTempConfigDir();
   const store = new FileCliConfigStore();
@@ -234,4 +254,60 @@ test("runHookHandlerAndForward surfaces collector transport errors", async () =>
   if (!result.ok) {
     assert.ok(result.errors.some((error) => error.includes("connection refused")));
   }
+});
+
+test("runHookHandler enriches git bash events with local git context", () => {
+  const configDir = createTempConfigDir();
+  const store = new FileCliConfigStore();
+  runInit(
+    {
+      configDir,
+      privacyTier: 1,
+      nowIso: "2026-02-23T12:00:00.000Z"
+    },
+    store
+  );
+
+  const provider = new MockGitContextProvider({
+    branch: "feature/trace",
+    headSha: "abc123def456",
+    linesAdded: 9,
+    linesRemoved: 3,
+    filesChanged: ["src/a.ts", "src/b.ts"]
+  });
+
+  const result = runHookHandler(
+    {
+      rawStdin: JSON.stringify({
+        event: "tool_result",
+        session_id: "sess_git_enrich",
+        tool_name: "Bash",
+        command: "git commit -m \"feat: trace enrich\"",
+        project_path: "/tmp/repo"
+      }),
+      configDir,
+      nowIso: "2026-02-23T12:00:02.000Z"
+    },
+    store,
+    provider
+  );
+
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    const payload = result.envelope.payload as Record<string, unknown>;
+    assert.equal(payload["git_branch"], "feature/trace");
+    assert.equal(payload["commit_sha"], "abc123def456");
+    assert.equal(payload["commit_message"], "feat: trace enrich");
+    assert.equal(payload["lines_added"], 9);
+    assert.equal(payload["lines_removed"], 3);
+    assert.deepEqual(payload["files_changed"], ["src/a.ts", "src/b.ts"]);
+    assert.equal(result.envelope.attributes?.["git_enriched"], "1");
+  }
+
+  assert.deepEqual(provider.lastRequest, {
+    repositoryPath: "/tmp/repo",
+    includeDiffStats: true
+  });
+
+  fs.rmSync(configDir, { recursive: true, force: true });
 });

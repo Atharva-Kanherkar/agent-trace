@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { execFileSync } from "node:child_process";
 
 import type { EventEnvelope } from "../../schema/src/types";
 import { FileCliConfigStore } from "./config-store";
@@ -8,6 +9,9 @@ import type {
   CliConfigStore,
   HookForwardInput,
   HookForwardResult,
+  HookGitContextProvider,
+  HookGitContextRequest,
+  HookGitRepositoryState,
   HookHandlerInput,
   HookHandlerResult,
   HookPayload,
@@ -33,6 +37,151 @@ function parseHookPayload(rawStdin: string): HookPayload | undefined {
   }
 
   return parsed as HookPayload;
+}
+
+function readString(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key];
+  if (typeof value === "string" && value.length > 0) {
+    return value;
+  }
+  return undefined;
+}
+
+function readNumber(record: Record<string, unknown>, key: string): number | undefined {
+  const value = record[key];
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  return undefined;
+}
+
+function readStringArray(record: Record<string, unknown>, key: string): readonly string[] | undefined {
+  const value = record[key];
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const output: string[] = [];
+  value.forEach((item) => {
+    if (typeof item === "string" && item.length > 0) {
+      output.push(item);
+    }
+  });
+
+  if (output.length === 0) {
+    return undefined;
+  }
+
+  return output;
+}
+
+function pickCommand(payload: HookPayload): string | undefined {
+  const record = payload as Record<string, unknown>;
+  return readString(record, "command") ?? readString(record, "bash_command") ?? readString(record, "bashCommand");
+}
+
+function pickToolName(payload: HookPayload): string | undefined {
+  const record = payload as Record<string, unknown>;
+  return readString(record, "tool_name") ?? readString(record, "toolName");
+}
+
+function isGitBashPayload(payload: HookPayload): boolean {
+  const toolName = pickToolName(payload);
+  const command = pickCommand(payload);
+  if (toolName === undefined || command === undefined) {
+    return false;
+  }
+
+  return toolName.toLowerCase() === "bash" && command.trim().startsWith("git ");
+}
+
+function parseCommitMessage(command: string): string | undefined {
+  const regex = /(?:^|\s)-m\s+["']([^"']+)["']/;
+  const match = command.match(regex);
+  if (match?.[1] === undefined || match[1].length === 0) {
+    return undefined;
+  }
+  return match[1];
+}
+
+function pickRepositoryPath(payload: HookPayload): string | undefined {
+  const record = payload as Record<string, unknown>;
+  return (
+    readString(record, "project_path") ??
+    readString(record, "projectPath") ??
+    readString(record, "cwd") ??
+    readString(record, "working_directory") ??
+    readString(record, "workingDirectory")
+  );
+}
+
+function toUniqueStrings(values: readonly string[]): readonly string[] {
+  const seen = new Set<string>();
+  const output: string[] = [];
+
+  values.forEach((value) => {
+    if (value.length === 0 || seen.has(value)) {
+      return;
+    }
+    seen.add(value);
+    output.push(value);
+  });
+
+  return output;
+}
+
+function parseIntSafe(raw: string): number | undefined {
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return undefined;
+  }
+  return parsed;
+}
+
+function parseNumstatOutput(raw: string): {
+  readonly linesAdded: number;
+  readonly linesRemoved: number;
+  readonly filesChanged: readonly string[];
+} | undefined {
+  const lines = raw.split(/\r?\n/);
+  let linesAdded = 0;
+  let linesRemoved = 0;
+  const filesChanged: string[] = [];
+  let matched = false;
+
+  lines.forEach((line) => {
+    const match = line.trim().match(/^(\d+|-)\s+(\d+|-)\s+(.+)$/);
+    if (match === null) {
+      return;
+    }
+
+    const addedRaw = match[1];
+    const removedRaw = match[2];
+    const filePath = match[3]?.trim();
+    if (filePath === undefined || filePath.length === 0) {
+      return;
+    }
+
+    if (addedRaw !== undefined && addedRaw !== "-") {
+      linesAdded += parseIntSafe(addedRaw) ?? 0;
+    }
+    if (removedRaw !== undefined && removedRaw !== "-") {
+      linesRemoved += parseIntSafe(removedRaw) ?? 0;
+    }
+
+    filesChanged.push(filePath);
+    matched = true;
+  });
+
+  if (!matched) {
+    return undefined;
+  }
+
+  return {
+    linesAdded,
+    linesRemoved,
+    filesChanged: toUniqueStrings(filesChanged)
+  };
 }
 
 function stableStringify(payload: HookPayload): string {
@@ -122,10 +271,140 @@ function getCollectorUrl(store: CliConfigStore, configDir?: string, collectorUrl
   return "http://127.0.0.1:8317/v1/hooks";
 }
 
+function runGitCommand(
+  args: readonly string[],
+  repositoryPath?: string
+): string | undefined {
+  try {
+    const output = execFileSync("git", [...args], {
+      ...(repositoryPath !== undefined ? { cwd: repositoryPath } : {}),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"]
+    });
+    const trimmed = output.trim();
+    if (trimmed.length === 0) {
+      return undefined;
+    }
+    return trimmed;
+  } catch {
+    return undefined;
+  }
+}
+
+export class ShellHookGitContextProvider implements HookGitContextProvider {
+  public readContext(request: HookGitContextRequest): HookGitRepositoryState | undefined {
+    const branch = runGitCommand(["rev-parse", "--abbrev-ref", "HEAD"], request.repositoryPath);
+    const headSha = runGitCommand(["rev-parse", "HEAD"], request.repositoryPath);
+    const diffStatsRaw = request.includeDiffStats
+      ? runGitCommand(["show", "--numstat", "--format="], request.repositoryPath)
+      : undefined;
+    const diffStats = diffStatsRaw === undefined ? undefined : parseNumstatOutput(diffStatsRaw);
+
+    if (
+      branch === undefined &&
+      headSha === undefined &&
+      diffStats?.linesAdded === undefined &&
+      diffStats?.linesRemoved === undefined &&
+      diffStats?.filesChanged === undefined
+    ) {
+      return undefined;
+    }
+
+    return {
+      ...(branch !== undefined ? { branch } : {}),
+      ...(headSha !== undefined ? { headSha } : {}),
+      ...(diffStats?.linesAdded !== undefined ? { linesAdded: diffStats.linesAdded } : {}),
+      ...(diffStats?.linesRemoved !== undefined ? { linesRemoved: diffStats.linesRemoved } : {}),
+      ...(diffStats?.filesChanged !== undefined ? { filesChanged: diffStats.filesChanged } : {})
+    };
+  }
+}
+
+function enrichHookPayloadWithGitContext(
+  payload: HookPayload,
+  provider: HookGitContextProvider
+): {
+  readonly payload: HookPayload;
+  readonly enriched: boolean;
+} {
+  if (!isGitBashPayload(payload)) {
+    return {
+      payload,
+      enriched: false
+    };
+  }
+
+  const record = payload as Record<string, unknown>;
+  const command = pickCommand(payload);
+  if (command === undefined) {
+    return {
+      payload,
+      enriched: false
+    };
+  }
+
+  const includeDiffStats = command.includes(" commit ");
+  const repositoryPath = pickRepositoryPath(payload);
+  const contextRequest: HookGitContextRequest = {
+    includeDiffStats,
+    ...(repositoryPath !== undefined ? { repositoryPath } : {})
+  };
+  const gitContext = provider.readContext(contextRequest);
+  const patch: Record<string, unknown> = {};
+
+  const commitMessage = parseCommitMessage(command);
+  const existingCommitMessage = readString(record, "commit_message") ?? readString(record, "commitMessage");
+  if (existingCommitMessage === undefined && commitMessage !== undefined) {
+    patch["commit_message"] = commitMessage;
+  }
+
+  const existingBranch = readString(record, "git_branch") ?? readString(record, "gitBranch");
+  if (existingBranch === undefined && gitContext?.branch !== undefined) {
+    patch["git_branch"] = gitContext.branch;
+  }
+
+  const existingCommitSha = readString(record, "commit_sha") ?? readString(record, "commitSha");
+  if (existingCommitSha === undefined && gitContext?.headSha !== undefined) {
+    patch["commit_sha"] = gitContext.headSha;
+  }
+
+  const existingLinesAdded = readNumber(record, "lines_added") ?? readNumber(record, "linesAdded");
+  if (existingLinesAdded === undefined && gitContext?.linesAdded !== undefined) {
+    patch["lines_added"] = gitContext.linesAdded;
+  }
+
+  const existingLinesRemoved = readNumber(record, "lines_removed") ?? readNumber(record, "linesRemoved");
+  if (existingLinesRemoved === undefined && gitContext?.linesRemoved !== undefined) {
+    patch["lines_removed"] = gitContext.linesRemoved;
+  }
+
+  const existingFilesChanged =
+    readStringArray(record, "files_changed") ?? readStringArray(record, "filesChanged");
+  if (existingFilesChanged === undefined && gitContext?.filesChanged !== undefined) {
+    patch["files_changed"] = gitContext.filesChanged;
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return {
+      payload,
+      enriched: false
+    };
+  }
+
+  return {
+    payload: {
+      ...payload,
+      ...patch
+    },
+    enriched: true
+  };
+}
+
 function toEnvelope(
   payload: HookPayload,
   privacyTier: PrivacyTier,
-  now: string
+  now: string,
+  extraAttributes: Record<string, string> = {}
 ): EventEnvelope<HookPayload> {
   const promptId = pickPromptId(payload);
   const eventType = pickEventType(payload);
@@ -143,7 +422,8 @@ function toEnvelope(
     privacyTier,
     payload,
     attributes: {
-      hook_name: eventType
+      hook_name: eventType,
+      ...extraAttributes
     }
   };
 
@@ -183,7 +463,8 @@ function validateEnvelope(envelope: EventEnvelope<HookPayload>): readonly string
 
 export function runHookHandler(
   input: HookHandlerInput,
-  store: CliConfigStore = new FileCliConfigStore()
+  store: CliConfigStore = new FileCliConfigStore(),
+  gitContextProvider: HookGitContextProvider = new ShellHookGitContextProvider()
 ): HookHandlerResult {
   let payload: HookPayload | undefined;
   try {
@@ -204,7 +485,10 @@ export function runHookHandler(
 
   const now = input.nowIso ?? new Date().toISOString();
   const privacyTier = getPrivacyTier(store, input.configDir);
-  const envelope = toEnvelope(payload, privacyTier, now);
+  const enrichment = enrichHookPayloadWithGitContext(payload, gitContextProvider);
+  const envelope = toEnvelope(enrichment.payload, privacyTier, now, {
+    ...(enrichment.enriched ? { git_enriched: "1" } : {})
+  });
   const errors = validateEnvelope(envelope);
   if (errors.length > 0) {
     return {
@@ -254,7 +538,8 @@ function isSuccessStatus(statusCode: number): boolean {
 export async function runHookHandlerAndForward(
   input: HookForwardInput,
   client: CollectorHttpClient = new FetchCollectorHttpClient(),
-  store: CliConfigStore = new FileCliConfigStore()
+  store: CliConfigStore = new FileCliConfigStore(),
+  gitContextProvider: HookGitContextProvider = new ShellHookGitContextProvider()
 ): Promise<HookForwardResult> {
   const hookResult = runHookHandler(
     {
@@ -262,7 +547,8 @@ export async function runHookHandlerAndForward(
       ...(input.configDir !== undefined ? { configDir: input.configDir } : {}),
       ...(input.nowIso !== undefined ? { nowIso: input.nowIso } : {})
     },
-    store
+    store,
+    gitContextProvider
   );
 
   if (!hookResult.ok) {

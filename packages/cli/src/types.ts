@@ -116,6 +116,23 @@ export interface HookPayload {
   readonly [key: string]: unknown;
 }
 
+export interface HookGitContextRequest {
+  readonly repositoryPath?: string;
+  readonly includeDiffStats: boolean;
+}
+
+export interface HookGitRepositoryState {
+  readonly branch?: string;
+  readonly headSha?: string;
+  readonly linesAdded?: number;
+  readonly linesRemoved?: number;
+  readonly filesChanged?: readonly string[];
+}
+
+export interface HookGitContextProvider {
+  readContext(request: HookGitContextRequest): HookGitRepositoryState | undefined;
+}
+
 export interface HookHandlerInput {
   readonly rawStdin: string;
   readonly configDir?: string;
