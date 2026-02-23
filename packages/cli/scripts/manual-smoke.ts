@@ -71,6 +71,9 @@ async function main(): Promise<void> {
   if (!status.ok) {
     throw new Error("cli smoke failed: status did not find config");
   }
+  if (!status.hooksConfigured) {
+    throw new Error("cli smoke failed: hooks config was not written");
+  }
   if (!hook.ok) {
     throw new Error(`cli smoke failed: hook handler errors: ${hook.errors.join(" | ")}`);
   }
@@ -80,6 +83,7 @@ async function main(): Promise<void> {
 
   console.log("cli manual smoke passed");
   console.log(`configPath=${init.configPath}`);
+  console.log(`hooksPath=${init.hooksPath}`);
   console.log(`sessionId=${hook.envelope.sessionId}`);
   console.log(`eventType=${hook.envelope.eventType}`);
 

@@ -51,13 +51,19 @@ test("runInit writes config and runStatus reports configured state", () => {
 
   assert.equal(initResult.ok, true);
   assert.equal(fs.existsSync(initResult.configPath), true);
+  assert.equal(fs.existsSync(initResult.hooksPath), true);
   assert.equal(initResult.config.privacyTier, 3);
+  assert.equal(initResult.config.hookCommand, "agent-trace hook-handler --forward");
+  assert.equal(initResult.hooks.hooks.length, 5);
+  assert.equal(initResult.hooks.hooks[0]?.event, "SessionStart");
 
   const after = runStatus(configDir, store);
   assert.equal(after.ok, true);
   if (after.ok) {
     assert.equal(after.config.collectorUrl, "http://127.0.0.1:8317/v1/hooks");
     assert.equal(after.config.privacyTier, 3);
+    assert.equal(after.hooksConfigured, true);
+    assert.ok(after.hooksPath.endsWith("agent-trace-claude-hooks.json"));
   }
 
   fs.rmSync(configDir, { recursive: true, force: true });

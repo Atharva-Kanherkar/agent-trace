@@ -2,9 +2,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import type { AgentTraceCliConfig, CliConfigStore } from "./types";
+import type { AgentTraceClaudeHookConfig, AgentTraceCliConfig, CliConfigStore } from "./types";
 
 const CONFIG_FILE_NAME = "agent-trace.json";
+const CLAUDE_HOOKS_FILE_NAME = "agent-trace-claude-hooks.json";
 
 function ensurePrivacyTier(value: unknown): value is 1 | 2 | 3 {
   return value === 1 || value === 2 || value === 3;
@@ -26,7 +27,7 @@ function parseConfig(raw: string): AgentTraceCliConfig | undefined {
   if (!ensurePrivacyTier(parsed["privacyTier"])) {
     return undefined;
   }
-  if (parsed["hookCommand"] !== "agent-trace hook-handler") {
+  if (typeof parsed["hookCommand"] !== "string" || parsed["hookCommand"].length === 0) {
     return undefined;
   }
   if (typeof parsed["updatedAt"] !== "string" || parsed["updatedAt"].length === 0) {
@@ -37,7 +38,7 @@ function parseConfig(raw: string): AgentTraceCliConfig | undefined {
     version: "1.0",
     collectorUrl: parsed["collectorUrl"],
     privacyTier: parsed["privacyTier"],
-    hookCommand: "agent-trace hook-handler",
+    hookCommand: parsed["hookCommand"],
     updatedAt: parsed["updatedAt"]
   };
 }
@@ -60,6 +61,10 @@ export class FileCliConfigStore implements CliConfigStore {
     return path.join(this.resolveConfigDir(configDirOverride), CONFIG_FILE_NAME);
   }
 
+  public resolveHooksPath(configDirOverride?: string): string {
+    return path.join(this.resolveConfigDir(configDirOverride), CLAUDE_HOOKS_FILE_NAME);
+  }
+
   public readConfig(configDirOverride?: string): AgentTraceCliConfig | undefined {
     const configPath = this.resolveConfigPath(configDirOverride);
     if (!fs.existsSync(configPath)) {
@@ -78,5 +83,13 @@ export class FileCliConfigStore implements CliConfigStore {
     fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
     return configPath;
   }
-}
 
+  public writeClaudeHooks(config: AgentTraceClaudeHookConfig, configDirOverride?: string): string {
+    const configDir = this.resolveConfigDir(configDirOverride);
+    fs.mkdirSync(configDir, { recursive: true });
+
+    const hooksPath = this.resolveHooksPath(configDirOverride);
+    fs.writeFileSync(hooksPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+    return hooksPath;
+  }
+}

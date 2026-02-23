@@ -1,3 +1,4 @@
+import { buildClaudeHookConfig } from "./claude-hooks";
 import type { CliConfigStore, InitCommandInput, InitCommandResult, PrivacyTier } from "./types";
 import { FileCliConfigStore } from "./config-store";
 
@@ -16,20 +17,24 @@ function nowIso(inputNowIso?: string): string {
 }
 
 export function runInit(input: InitCommandInput, store: CliConfigStore = new FileCliConfigStore()): InitCommandResult {
+  const timestamp = nowIso(input.nowIso);
   const config = {
     version: "1.0" as const,
     collectorUrl: input.collectorUrl ?? "http://127.0.0.1:8317/v1/hooks",
     privacyTier: ensurePrivacyTierOrDefault(input.privacyTier),
-    hookCommand: "agent-trace hook-handler" as const,
-    updatedAt: nowIso(input.nowIso)
+    hookCommand: "agent-trace hook-handler --forward",
+    updatedAt: timestamp
   };
+  const hooks = buildClaudeHookConfig(config.hookCommand, timestamp);
 
   const configPath = store.writeConfig(config, input.configDir);
+  const hooksPath = store.writeClaudeHooks(hooks, input.configDir);
 
   return {
     ok: true,
     configPath,
-    config
+    hooksPath,
+    config,
+    hooks
   };
 }
-

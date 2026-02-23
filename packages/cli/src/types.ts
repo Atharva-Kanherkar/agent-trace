@@ -4,6 +4,19 @@ export type PrivacyTier = SchemaPrivacyTier;
 
 export type CliCommand = "init" | "status" | "hook-handler";
 
+export type ClaudeHookEvent = "SessionStart" | "SessionEnd" | "PostToolUse" | "Stop" | "TaskCompleted";
+
+export interface AgentTraceClaudeHookEntry {
+  readonly event: ClaudeHookEvent;
+  readonly command: string;
+}
+
+export interface AgentTraceClaudeHookConfig {
+  readonly version: "1.0";
+  readonly generatedAt: string;
+  readonly hooks: readonly AgentTraceClaudeHookEntry[];
+}
+
 export interface CliParsedArgs {
   readonly command: CliCommand | undefined;
   readonly configDir?: string;
@@ -16,15 +29,17 @@ export interface AgentTraceCliConfig {
   readonly version: "1.0";
   readonly collectorUrl: string;
   readonly privacyTier: PrivacyTier;
-  readonly hookCommand: "agent-trace hook-handler";
+  readonly hookCommand: string;
   readonly updatedAt: string;
 }
 
 export interface CliConfigStore {
   resolveConfigDir(configDirOverride?: string): string;
   resolveConfigPath(configDirOverride?: string): string;
+  resolveHooksPath(configDirOverride?: string): string;
   readConfig(configDirOverride?: string): AgentTraceCliConfig | undefined;
   writeConfig(config: AgentTraceCliConfig, configDirOverride?: string): string;
+  writeClaudeHooks(config: AgentTraceClaudeHookConfig, configDirOverride?: string): string;
 }
 
 export interface InitCommandInput {
@@ -37,7 +52,9 @@ export interface InitCommandInput {
 export interface InitCommandResult {
   readonly ok: true;
   readonly configPath: string;
+  readonly hooksPath: string;
   readonly config: AgentTraceCliConfig;
+  readonly hooks: AgentTraceClaudeHookConfig;
 }
 
 export interface StatusCommandResultNotConfigured {
@@ -50,6 +67,8 @@ export interface StatusCommandResultConfigured {
   readonly ok: true;
   readonly message: "agent-trace config found";
   readonly configPath: string;
+  readonly hooksPath: string;
+  readonly hooksConfigured: boolean;
   readonly config: AgentTraceCliConfig;
 }
 
