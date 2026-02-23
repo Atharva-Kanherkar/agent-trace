@@ -27,6 +27,7 @@ Updated: 2026-02-23
 6. `@agent-trace/platform`
    - Migration manifest and migration-file validator.
    - Baseline ClickHouse and PostgreSQL SQL migrations.
+   - Strict ClickHouse `agent_events` row mapper and writer abstraction.
 7. `@agent-trace/runtime`
    - In-memory runtime assembly for collector + api.
    - Process-level HTTP servers on `:8317` (collector) and `:8318` (api).
@@ -64,9 +65,11 @@ Feature set complete after Stage A:
 
 1. Local end-to-end demo flow without external DB.
 
-## Stage B: Persistence and projection (next)
+## Stage B: Persistence and projection (in progress)
 
-1. ClickHouse writer implementation (events + aggregates).
+1. ClickHouse writer implementation:
+   - Events writer for `agent_events` complete.
+   - Session aggregate writers/materialized flow pending.
 2. PostgreSQL writer implementation (sessions, commits, settings).
 3. Collector projection pipeline to update session traces as events arrive.
 
