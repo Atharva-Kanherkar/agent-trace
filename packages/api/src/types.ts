@@ -46,6 +46,19 @@ export interface ApiSessionTimelineResponse {
   readonly timeline: readonly TimelineEvent[];
 }
 
+export interface ApiDailyCostPoint {
+  readonly date: string;
+  readonly totalCostUsd: number;
+  readonly sessionCount: number;
+  readonly promptCount: number;
+  readonly toolCallCount: number;
+}
+
+export interface ApiCostDailyResponse {
+  readonly status: "ok";
+  readonly points: readonly ApiDailyCostPoint[];
+}
+
 export interface ApiErrorResponse {
   readonly status: "error";
   readonly message: string;
@@ -56,6 +69,7 @@ export type ApiPayload =
   | ApiSessionListResponse
   | ApiSessionDetailResponse
   | ApiSessionTimelineResponse
+  | ApiCostDailyResponse
   | ApiErrorResponse;
 
 export interface ApiResponse {

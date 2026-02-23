@@ -1,5 +1,6 @@
 import { toSessionSummary } from "./mapper";
 import type {
+  ApiCostDailyResponse,
   ApiErrorResponse,
   ApiHandlerDependencies,
   ApiHealthResponse,
@@ -39,6 +40,60 @@ function parseSessionPath(pathname: string): readonly string[] {
   return pathname.split("/").filter((segment) => segment.length > 0);
 }
 
+function toMetricDate(startedAt: string): string {
+  const parsed = Date.parse(startedAt);
+  if (Number.isNaN(parsed)) {
+    return startedAt.slice(0, 10);
+  }
+  return new Date(parsed).toISOString().slice(0, 10);
+}
+
+function buildDailyCostResponse(
+  dependencies: ApiHandlerDependencies,
+  filters: SessionFilters
+): ApiCostDailyResponse {
+  const traces = dependencies.repository.list(filters);
+  const byDate = new Map<
+    string,
+    {
+      totalCostUsd: number;
+      sessionCount: number;
+      promptCount: number;
+      toolCallCount: number;
+    }
+  >();
+
+  traces.forEach((trace) => {
+    const date = toMetricDate(trace.startedAt);
+    const current = byDate.get(date) ?? {
+      totalCostUsd: 0,
+      sessionCount: 0,
+      promptCount: 0,
+      toolCallCount: 0
+    };
+    current.totalCostUsd += trace.metrics.totalCostUsd;
+    current.sessionCount += 1;
+    current.promptCount += trace.metrics.promptCount;
+    current.toolCallCount += trace.metrics.toolCallCount;
+    byDate.set(date, current);
+  });
+
+  const points = [...byDate.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([date, entry]) => ({
+      date,
+      totalCostUsd: Number(entry.totalCostUsd.toFixed(6)),
+      sessionCount: entry.sessionCount,
+      promptCount: entry.promptCount,
+      toolCallCount: entry.toolCallCount
+    }));
+
+  return {
+    status: "ok",
+    points
+  };
+}
+
 export function handleApiRequest(request: ApiRequest, dependencies: ApiHandlerDependencies): ApiResponse {
   const parsedUrl = new URL(request.url, "http://localhost");
   const pathname = parsedUrl.pathname;
@@ -62,6 +117,14 @@ export function handleApiRequest(request: ApiRequest, dependencies: ApiHandlerDe
     return {
       statusCode: 200,
       payload
+    };
+  }
+
+  if (request.method === "GET" && pathname === "/v1/analytics/cost/daily") {
+    const filters = parseFilters(parsedUrl.searchParams);
+    return {
+      statusCode: 200,
+      payload: buildDailyCostResponse(dependencies, filters)
     };
   }
 

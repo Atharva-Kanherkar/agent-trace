@@ -20,6 +20,14 @@ function createDependencies(): ApiHandlerDependencies {
     createSampleTrace({
       sessionId: "sess_002",
       user: { id: "user_002" },
+      startedAt: "2026-02-24T10:00:00.000Z",
+      endedAt: "2026-02-24T10:07:00.000Z",
+      metrics: {
+        ...createSampleTrace().metrics,
+        promptCount: 3,
+        toolCallCount: 6,
+        totalCostUsd: 1.15
+      },
       environment: {
         terminal: "bash",
         projectPath: "/home/atharva/agent-trace",
@@ -121,6 +129,30 @@ test("GET /v1/sessions/:id and /timeline returns trace data", () => {
   }
 });
 
+test("GET /v1/analytics/cost/daily returns aggregated daily cost points", () => {
+  const response = handleApiRequest(
+    {
+      method: "GET",
+      url: "/v1/analytics/cost/daily"
+    },
+    createDependencies()
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.payload.status, "ok");
+  if (response.payload.status === "ok" && "points" in response.payload) {
+    assert.equal(response.payload.points.length, 2);
+    assert.equal(response.payload.points[0]?.date, "2026-02-23");
+    assert.equal(response.payload.points[0]?.sessionCount, 1);
+    assert.equal(response.payload.points[0]?.totalCostUsd, 0.42);
+    assert.equal(response.payload.points[1]?.date, "2026-02-24");
+    assert.equal(response.payload.points[1]?.sessionCount, 1);
+    assert.equal(response.payload.points[1]?.totalCostUsd, 1.15);
+  } else {
+    assert.fail("expected daily cost analytics payload");
+  }
+});
+
 test("returns 404 for unknown routes and missing session", () => {
   const missing = handleApiRequest(
     {
@@ -152,4 +184,3 @@ test("returns 404 for unknown routes and missing session", () => {
     assert.fail("expected error payload");
   }
 });
-

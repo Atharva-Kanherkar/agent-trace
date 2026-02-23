@@ -24,6 +24,7 @@ Updated: 2026-02-23
 3. `@agent-trace/api`
    - Typed query handler (`/health`, `/v1/sessions`, `/v1/sessions/:id`, `/timeline`).
    - SSE session stream endpoint (`/v1/sessions/stream`).
+   - Cost analytics endpoint (`/v1/analytics/cost/daily`).
    - In-memory session repository.
    - Raw HTTP adapter and Node HTTP handler creator.
    - Standalone API server starter (`startApiServer`) with process CLI entrypoint.
