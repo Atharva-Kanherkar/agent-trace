@@ -119,6 +119,7 @@ Feature set complete after Stage A:
    - Runtime DB mode auto-migration on startup complete.
 5. Git enrichment:
    - Collector hook git metadata inference foundation complete.
+   - Collector stdout diff/stat enrichment foundation complete (lines/files metadata from git output).
    - Post-hoc repository diff/stat enrichment flow pending.
 
 Feature set complete after Stage B:

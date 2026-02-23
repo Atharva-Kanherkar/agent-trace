@@ -30,6 +30,8 @@ test("enrichCollectorEventWithGitMetadata infers commit sha and message from bas
   const payload = enriched.payload as Record<string, unknown>;
   assert.equal(payload["commit_sha"], "a1b2c3d");
   assert.equal(payload["commit_message"], "feat: add collector");
+  assert.equal(payload["lines_added"], undefined);
+  assert.equal(payload["lines_removed"], undefined);
   assert.equal(enriched.attributes?.["git_enriched"], "1");
 });
 
@@ -48,17 +50,23 @@ test("enrichCollectorEventWithGitMetadata infers branch from git checkout comman
   assert.equal(enriched.attributes?.["git_enriched"], "1");
 });
 
-test("enrichCollectorEventWithGitMetadata does not override existing git metadata", () => {
+test("enrichCollectorEventWithGitMetadata preserves existing git metadata while enriching missing fields", () => {
   const event = createEvent({
     payload: {
       tool_name: "Bash",
       command: "git commit -m \"feat: add collector\"",
-      commit_sha: "existing_sha"
+      commit_sha: "existing_sha",
+      stdout: "[main a1b2c3d] feat: add collector\n 2 files changed, 11 insertions(+), 3 deletions(-)"
     }
   });
   const enriched = enrichCollectorEventWithGitMetadata(event);
+  const payload = enriched.payload as Record<string, unknown>;
 
-  assert.equal(enriched, event);
+  assert.equal(payload["commit_sha"], "existing_sha");
+  assert.equal(payload["commit_message"], "feat: add collector");
+  assert.equal(payload["lines_added"], 11);
+  assert.equal(payload["lines_removed"], 3);
+  assert.equal(enriched.attributes?.["git_enriched"], "1");
 });
 
 test("enrichCollectorEventWithGitMetadata ignores non-hook or non-bash events", () => {
@@ -74,4 +82,54 @@ test("enrichCollectorEventWithGitMetadata ignores non-hook or non-bash events", 
 
   assert.equal(enrichCollectorEventWithGitMetadata(nonHook), nonHook);
   assert.equal(enrichCollectorEventWithGitMetadata(nonBash), nonBash);
+});
+
+test("enrichCollectorEventWithGitMetadata extracts line stats from git commit shortstat output", () => {
+  const enriched = enrichCollectorEventWithGitMetadata(
+    createEvent({
+      payload: {
+        tool_name: "Bash",
+        command: "git commit -m \"feat: improve parser\"",
+        stdout: "[main b2c3d4e] feat: improve parser\n 5 files changed, 24 insertions(+), 9 deletions(-)"
+      }
+    })
+  );
+
+  const payload = enriched.payload as Record<string, unknown>;
+  assert.equal(payload["commit_sha"], "b2c3d4e");
+  assert.equal(payload["lines_added"], 24);
+  assert.equal(payload["lines_removed"], 9);
+});
+
+test("enrichCollectorEventWithGitMetadata extracts files and totals from git diff numstat output", () => {
+  const enriched = enrichCollectorEventWithGitMetadata(
+    createEvent({
+      payload: {
+        tool_name: "Bash",
+        command: "git diff --numstat",
+        stdout: "10\t2\tsrc/collector.ts\n3\t0\tREADME.md\n-\t-\tassets/logo.png\n"
+      }
+    })
+  );
+
+  const payload = enriched.payload as Record<string, unknown>;
+  assert.equal(payload["lines_added"], 13);
+  assert.equal(payload["lines_removed"], 2);
+  assert.deepEqual(payload["files_changed"], ["src/collector.ts", "README.md", "assets/logo.png"]);
+});
+
+test("enrichCollectorEventWithGitMetadata extracts files from git diff --name-only output", () => {
+  const enriched = enrichCollectorEventWithGitMetadata(
+    createEvent({
+      payload: {
+        tool_name: "Bash",
+        command: "git diff --name-only",
+        stdout: "src/http.ts\nsrc/git-enrichment.ts\n"
+      }
+    })
+  );
+
+  const payload = enriched.payload as Record<string, unknown>;
+  assert.deepEqual(payload["files_changed"], ["src/http.ts", "src/git-enrichment.ts"]);
+  assert.equal(enriched.attributes?.["git_enriched"], "1");
 });
