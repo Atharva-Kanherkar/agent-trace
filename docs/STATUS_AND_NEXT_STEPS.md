@@ -29,6 +29,9 @@ Updated: 2026-02-23
    - Baseline ClickHouse and PostgreSQL SQL migrations.
    - Strict ClickHouse `agent_events` row mapper and writer abstraction.
    - Strict PostgreSQL writers for `sessions`, `commits`, and `instance_settings`.
+   - Real DB client adapters:
+     - ClickHouse adapter using `@clickhouse/client`
+     - PostgreSQL adapter using `pg`
 7. `@agent-trace/runtime`
    - In-memory runtime assembly for collector + api.
    - Process-level HTTP servers on `:8317` (collector) and `:8318` (api).
@@ -37,6 +40,7 @@ Updated: 2026-02-23
    - In-memory persistence pipeline wiring:
      - accepted events -> ClickHouse event writer
      - projected traces -> PostgreSQL session/commit writer
+   - Pluggable runtime persistence (inject real DB-backed adapters).
 
 ## Quality gates
 
@@ -77,7 +81,8 @@ Feature set complete after Stage A:
 2. PostgreSQL writer implementation (sessions, commits, settings).
    - Core typed writer implementation complete.
    - In-memory collector wiring complete.
-   - Real DB client adapter pending.
+   - Real DB client adapter complete.
+   - Runtime integration path for injected DB adapters complete.
 3. Collector projection pipeline to update session traces as events arrive.
    - In-memory runtime projection + persistence orchestration complete.
    - Production collector service wiring pending.

@@ -12,6 +12,12 @@
     "typecheck": "node ../../scripts/run-tsc.cjs -p tsconfig.json --noEmit",
     "test:unit": "npm run build && node --test dist/test/*.test.js",
     "test:manual": "npm run build && node dist/scripts/manual-smoke.js"
+  },
+  "dependencies": {
+    "@clickhouse/client": "^1.17.0",
+    "pg": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.16.0"
   }
 }
-

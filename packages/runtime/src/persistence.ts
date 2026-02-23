@@ -3,13 +3,18 @@ import { PostgresSessionWriter } from "../../platform/src/postgres-writer";
 import type { AgentSessionTrace } from "../../schema/src/types";
 import type {
   ClickHouseAgentEventRow,
-  ClickHouseInsertRequest,
   ClickHouseInsertClient,
+  ClickHouseInsertRequest,
   PostgresCommitRow,
   PostgresSessionPersistenceClient,
   PostgresSessionRow
 } from "../../platform/src/persistence-types";
-import type { RuntimeEnvelope, RuntimePersistence, RuntimePersistenceSnapshot } from "./types";
+import type {
+  RuntimeEnvelope,
+  RuntimePersistence,
+  RuntimePersistenceClients,
+  RuntimePersistenceSnapshot
+} from "./types";
 
 class InMemoryRuntimeClickHouseClient implements ClickHouseInsertClient<ClickHouseAgentEventRow> {
   private readonly rows: ClickHouseAgentEventRow[] = [];
@@ -50,18 +55,14 @@ class InMemoryRuntimePostgresClient implements PostgresSessionPersistenceClient 
   }
 }
 
-export class InMemoryRuntimePersistence implements RuntimePersistence {
-  private readonly clickHouseClient: InMemoryRuntimeClickHouseClient;
-  private readonly postgresClient: InMemoryRuntimePostgresClient;
+class WriterBackedRuntimePersistence implements RuntimePersistence {
   private readonly clickHouseWriter: ClickHouseEventWriter;
   private readonly postgresSessionWriter: PostgresSessionWriter;
   private readonly writeFailures: string[];
 
-  public constructor() {
-    this.clickHouseClient = new InMemoryRuntimeClickHouseClient();
-    this.postgresClient = new InMemoryRuntimePostgresClient();
-    this.clickHouseWriter = new ClickHouseEventWriter(this.clickHouseClient);
-    this.postgresSessionWriter = new PostgresSessionWriter(this.postgresClient);
+  public constructor(clickHouseWriter: ClickHouseEventWriter, postgresSessionWriter: PostgresSessionWriter) {
+    this.clickHouseWriter = clickHouseWriter;
+    this.postgresSessionWriter = postgresSessionWriter;
     this.writeFailures = [];
   }
 
@@ -78,10 +79,39 @@ export class InMemoryRuntimePersistence implements RuntimePersistence {
 
   public getSnapshot(): RuntimePersistenceSnapshot {
     return {
-      clickHouseRows: this.clickHouseClient.listRows(),
-      postgresSessionRows: this.postgresClient.listSessions(),
-      postgresCommitRows: this.postgresClient.listCommits(),
+      clickHouseRows: [],
+      postgresSessionRows: [],
+      postgresCommitRows: [],
       writeFailures: this.writeFailures
     };
   }
+}
+
+export class InMemoryRuntimePersistence extends WriterBackedRuntimePersistence {
+  private readonly clickHouseClient: InMemoryRuntimeClickHouseClient;
+  private readonly postgresClient: InMemoryRuntimePostgresClient;
+
+  public constructor() {
+    const clickHouseClient = new InMemoryRuntimeClickHouseClient();
+    const postgresClient = new InMemoryRuntimePostgresClient();
+    super(new ClickHouseEventWriter(clickHouseClient), new PostgresSessionWriter(postgresClient));
+    this.clickHouseClient = clickHouseClient;
+    this.postgresClient = postgresClient;
+  }
+
+  public override getSnapshot(): RuntimePersistenceSnapshot {
+    const base = super.getSnapshot();
+    return {
+      ...base,
+      clickHouseRows: this.clickHouseClient.listRows(),
+      postgresSessionRows: this.postgresClient.listSessions(),
+      postgresCommitRows: this.postgresClient.listCommits()
+    };
+  }
+}
+
+export function createWriterBackedRuntimePersistence(clients: RuntimePersistenceClients): RuntimePersistence {
+  const clickHouseWriter = new ClickHouseEventWriter(clients.clickHouseClient);
+  const postgresSessionWriter = new PostgresSessionWriter(clients.postgresSessionClient);
+  return new WriterBackedRuntimePersistence(clickHouseWriter, postgresSessionWriter);
 }

@@ -96,3 +96,33 @@ export interface PostgresSessionWriterSummary {
 export interface PostgresSettingsWriterSummary {
   readonly writtenSettings: number;
 }
+
+export interface ClickHouseConnectionOptions {
+  readonly url: string;
+  readonly username?: string;
+  readonly password?: string;
+  readonly database?: string;
+}
+
+export interface PostgresConnectionOptions {
+  readonly connectionString?: string;
+  readonly host?: string;
+  readonly port?: number;
+  readonly user?: string;
+  readonly password?: string;
+  readonly database?: string;
+  readonly ssl?: boolean;
+  readonly maxPoolSize?: number;
+}
+
+export type PostgresQueryValues = readonly unknown[];
+
+export interface PostgresTransactionalClient {
+  query(sql: string, values?: PostgresQueryValues): Promise<unknown>;
+  release(): void;
+}
+
+export interface PostgresPoolClient {
+  connect(): Promise<PostgresTransactionalClient>;
+  end(): Promise<void>;
+}

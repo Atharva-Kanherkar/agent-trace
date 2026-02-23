@@ -7,7 +7,14 @@ import { createCollectorHttpHandler } from "../../collector/src/http";
 import type { CollectorHandlerDependencies, CollectorValidationResult } from "../../collector/src/types";
 import { validateEventEnvelope } from "../../schema/src/validators";
 import { InMemoryRuntimePersistence } from "./persistence";
-import type { RuntimeEnvelope, RuntimeRequestHandlers, RuntimeStartOptions, RuntimeStartedServers } from "./types";
+import type {
+  InMemoryRuntimeOptions,
+  RuntimeEnvelope,
+  RuntimePersistence,
+  RuntimeRequestHandlers,
+  RuntimeStartOptions,
+  RuntimeStartedServers
+} from "./types";
 import { projectEnvelopeToTrace } from "./projector";
 
 function toCollectorValidationResult(input: unknown): CollectorValidationResult<RuntimeEnvelope> {
@@ -61,16 +68,36 @@ export interface InMemoryRuntime extends RuntimeRequestHandlers {
   readonly sessionRepository: InMemorySessionRepository;
   readonly collectorStore: InMemoryCollectorStore<RuntimeEnvelope>;
   readonly collectorDependencies: CollectorHandlerDependencies<RuntimeEnvelope>;
-  readonly persistence: InMemoryRuntimePersistence;
+  readonly persistence: RuntimePersistence;
 }
 
-export function createInMemoryRuntime(startedAtMs: number = Date.now()): InMemoryRuntime {
+function resolveRuntimeOptions(input: number | InMemoryRuntimeOptions | undefined): {
+  readonly startedAtMs: number;
+  readonly persistence: RuntimePersistence;
+} {
+  if (typeof input === "number") {
+    return {
+      startedAtMs: input,
+      persistence: new InMemoryRuntimePersistence()
+    };
+  }
+
+  const startedAtMs = input?.startedAtMs ?? Date.now();
+  const persistence = input?.persistence ?? new InMemoryRuntimePersistence();
+  return {
+    startedAtMs,
+    persistence
+  };
+}
+
+export function createInMemoryRuntime(input?: number | InMemoryRuntimeOptions): InMemoryRuntime {
+  const options = resolveRuntimeOptions(input);
   const sessionRepository = new InMemorySessionRepository();
   const collectorStore = new InMemoryCollectorStore<RuntimeEnvelope>();
-  const persistence = new InMemoryRuntimePersistence();
+  const persistence = options.persistence;
 
   const collectorDependencies: CollectorHandlerDependencies<RuntimeEnvelope> = {
-    startedAtMs,
+    startedAtMs: options.startedAtMs,
     validateEvent: toCollectorValidationResult,
     getEventId: (event: RuntimeEnvelope): string => event.eventId,
     store: collectorStore,
@@ -83,7 +110,7 @@ export function createInMemoryRuntime(startedAtMs: number = Date.now()): InMemor
   };
 
   const apiDependencies = {
-    startedAtMs,
+    startedAtMs: options.startedAtMs,
     repository: sessionRepository
   } as const;
 
