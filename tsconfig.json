@@ -6,6 +6,18 @@
     },
     {
       "path": "./packages/collector"
+    },
+    {
+      "path": "./packages/api"
+    },
+    {
+      "path": "./packages/cli"
+    },
+    {
+      "path": "./packages/dashboard"
+    },
+    {
+      "path": "./packages/platform"
     }
   ]
 }

@@ -1,0 +1,126 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+
+import { FileCliConfigStore, parseArgs, runHookHandler, runInit, runStatus } from "../src";
+
+function createTempConfigDir(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), "agent-trace-cli-test-"));
+}
+
+test("parseArgs parses supported command options", () => {
+  const parsed = parseArgs([
+    "node",
+    "agent-trace",
+    "init",
+    "--config-dir",
+    "/tmp/config-dir",
+    "--collector-url",
+    "http://127.0.0.1:8317/v1/hooks",
+    "--privacy-tier",
+    "2"
+  ]);
+
+  assert.equal(parsed.command, "init");
+  assert.equal(parsed.configDir, "/tmp/config-dir");
+  assert.equal(parsed.collectorUrl, "http://127.0.0.1:8317/v1/hooks");
+  assert.equal(parsed.privacyTier, 2);
+});
+
+test("runInit writes config and runStatus reports configured state", () => {
+  const configDir = createTempConfigDir();
+  const store = new FileCliConfigStore();
+
+  const before = runStatus(configDir, store);
+  assert.equal(before.ok, false);
+
+  const initResult = runInit(
+    {
+      configDir,
+      collectorUrl: "http://127.0.0.1:8317/v1/hooks",
+      privacyTier: 3,
+      nowIso: "2026-02-23T12:00:00.000Z"
+    },
+    store
+  );
+
+  assert.equal(initResult.ok, true);
+  assert.equal(fs.existsSync(initResult.configPath), true);
+  assert.equal(initResult.config.privacyTier, 3);
+
+  const after = runStatus(configDir, store);
+  assert.equal(after.ok, true);
+  if (after.ok) {
+    assert.equal(after.config.collectorUrl, "http://127.0.0.1:8317/v1/hooks");
+    assert.equal(after.config.privacyTier, 3);
+  }
+
+  fs.rmSync(configDir, { recursive: true, force: true });
+});
+
+test("runHookHandler maps valid payload into event envelope", () => {
+  const configDir = createTempConfigDir();
+  const store = new FileCliConfigStore();
+  runInit(
+    {
+      configDir,
+      privacyTier: 2,
+      nowIso: "2026-02-23T12:00:00.000Z"
+    },
+    store
+  );
+
+  const rawPayload = JSON.stringify({
+    hook: "PostToolUse",
+    event: "tool_result",
+    session_id: "sess_001",
+    prompt_id: "prompt_001",
+    timestamp: "2026-02-23T12:00:01.000Z",
+    tool_name: "Read"
+  });
+
+  const first = runHookHandler(
+    {
+      rawStdin: rawPayload,
+      configDir,
+      nowIso: "2026-02-23T12:00:02.000Z"
+    },
+    store
+  );
+  const second = runHookHandler(
+    {
+      rawStdin: rawPayload,
+      configDir,
+      nowIso: "2026-02-23T12:00:02.000Z"
+    },
+    store
+  );
+
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  if (first.ok && second.ok) {
+    assert.equal(first.envelope.source, "hook");
+    assert.equal(first.envelope.sessionId, "sess_001");
+    assert.equal(first.envelope.promptId, "prompt_001");
+    assert.equal(first.envelope.privacyTier, 2);
+    assert.equal(first.envelope.eventId.length, 64);
+    assert.equal(first.envelope.eventId, second.envelope.eventId);
+  }
+
+  fs.rmSync(configDir, { recursive: true, force: true });
+});
+
+test("runHookHandler rejects invalid JSON and empty payload", () => {
+  const invalidJson = runHookHandler({
+    rawStdin: "{ this is invalid json "
+  });
+  assert.equal(invalidJson.ok, false);
+
+  const emptyPayload = runHookHandler({
+    rawStdin: "   "
+  });
+  assert.equal(emptyPayload.ok, false);
+});
+

@@ -1,0 +1,20 @@
+{
+  "name": "@agent-trace/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Strict CLI for configuring and wiring agent-trace.",
+  "license": "Apache-2.0",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "bin": {
+    "agent-trace": "dist/src/cli.js"
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && node ../../scripts/run-tsc.cjs -p tsconfig.json",
+    "typecheck": "node ../../scripts/run-tsc.cjs -p tsconfig.json --noEmit",
+    "test:unit": "npm run build && node --test dist/test/*.test.js",
+    "test:manual": "npm run build && node dist/scripts/manual-smoke.js"
+  }
+}
+

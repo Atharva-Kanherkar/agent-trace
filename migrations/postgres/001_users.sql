@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS users
+(
+  id TEXT PRIMARY KEY,
+  email TEXT UNIQUE,
+  device_id TEXT UNIQUE,
+  api_key_hash TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
