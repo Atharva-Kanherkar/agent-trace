@@ -1,0 +1,12 @@
+services:
+  runtime:
+    volumes:
+      - ..:/app
+      - runtime_node_modules:/app/node_modules
+    command: >
+      bash -lc "npm ci &&
+      npm run --workspace @agent-trace/runtime build &&
+      node packages/runtime/dist/src/cli.js"
+
+volumes:
+  runtime_node_modules:

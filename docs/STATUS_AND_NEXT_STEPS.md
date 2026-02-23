@@ -136,7 +136,9 @@ Feature set complete after Stage C:
 ## Stage D: Product surface completion
 
 1. Real dashboard app (Next.js UI shell + API integration).
-2. Docker Compose service graph (collector, api, dashboard, dbs).
+2. Docker Compose service graph:
+   - runtime + ClickHouse + PostgreSQL compose foundation complete.
+   - split collector/api/dashboard compose topology pending.
 3. Operational docs and startup scripts.
 
 Feature set complete after Stage D:

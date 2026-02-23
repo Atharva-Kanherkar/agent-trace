@@ -1,0 +1,67 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: agent-trace-clickhouse
+    environment:
+      CLICKHOUSE_DB: agent_trace
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: agent_trace
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:8123/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: agent-trace-postgres
+    environment:
+      POSTGRES_DB: agent_trace
+      POSTGRES_USER: agent_trace
+      POSTGRES_PASSWORD: agent_trace
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent_trace -d agent_trace"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  runtime:
+    build:
+      context: ..
+      dockerfile: docker/runtime.Dockerfile
+    container_name: agent-trace-runtime
+    environment:
+      RUNTIME_HOST: "0.0.0.0"
+      COLLECTOR_PORT: "8317"
+      API_PORT: "8318"
+      OTEL_GRPC_ADDRESS: "0.0.0.0:4717"
+      CLICKHOUSE_URL: "http://clickhouse:8123"
+      CLICKHOUSE_USERNAME: "default"
+      CLICKHOUSE_PASSWORD: "agent_trace"
+      CLICKHOUSE_DATABASE: "agent_trace"
+      POSTGRES_CONNECTION_STRING: "postgres://agent_trace:agent_trace@postgres:5432/agent_trace"
+    ports:
+      - "8317:8317"
+      - "8318:8318"
+      - "4717:4717"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  clickhouse_data:
+  postgres_data:
