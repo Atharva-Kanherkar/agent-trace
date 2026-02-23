@@ -38,6 +38,7 @@ Updated: 2026-02-23
    - Migration manifest and migration-file validator.
    - Baseline ClickHouse and PostgreSQL SQL migrations.
    - Strict ClickHouse `agent_events` row mapper and writer abstraction.
+   - Strict ClickHouse `session_traces` row mapper and writer abstraction.
    - Strict PostgreSQL writers for `sessions`, `commits`, and `instance_settings`.
    - Real DB client adapters:
      - ClickHouse adapter using `@clickhouse/client`
@@ -89,7 +90,8 @@ Feature set complete after Stage A:
 
 1. ClickHouse writer implementation:
    - Events writer for `agent_events` complete.
-   - Session aggregate writers/materialized flow pending.
+   - Session aggregate writer foundation for `session_traces` complete.
+   - Runtime wiring for `session_traces` persistence and materialized-flow orchestration pending.
 2. PostgreSQL writer implementation (sessions, commits, settings).
    - Core typed writer implementation complete.
    - In-memory collector wiring complete.

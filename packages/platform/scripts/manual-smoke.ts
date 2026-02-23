@@ -1,5 +1,6 @@
 import {
   ClickHouseEventWriter,
+  ClickHouseSessionTraceWriter,
   PostgresSessionWriter,
   PostgresSettingsWriter,
   getMigrationManifest,
@@ -12,6 +13,7 @@ import type {
   ClickHouseAgentEventRow,
   ClickHouseInsertRequest,
   ClickHouseInsertClient,
+  ClickHouseSessionTraceRow,
   PlatformEventEnvelope,
   PostgresCommitRow,
   PostgresInstanceSettingRow,
@@ -24,6 +26,14 @@ class SmokeInsertClient implements ClickHouseInsertClient<ClickHouseAgentEventRo
   public lastRequest?: ClickHouseInsertRequest<ClickHouseAgentEventRow>;
 
   public async insertJsonEachRow(request: ClickHouseInsertRequest<ClickHouseAgentEventRow>): Promise<void> {
+    this.lastRequest = request;
+  }
+}
+
+class SmokeSessionTraceInsertClient implements ClickHouseInsertClient<ClickHouseSessionTraceRow> {
+  public lastRequest?: ClickHouseInsertRequest<ClickHouseSessionTraceRow>;
+
+  public async insertJsonEachRow(request: ClickHouseInsertRequest<ClickHouseSessionTraceRow>): Promise<void> {
     this.lastRequest = request;
   }
 }
@@ -133,6 +143,19 @@ async function main(): Promise<void> {
   const sessionWriter = new PostgresSessionWriter(sessionClient);
   const trace = createManualTrace();
 
+  const sessionTraceClient = new SmokeSessionTraceInsertClient();
+  const sessionTraceWriter = new ClickHouseSessionTraceWriter(sessionTraceClient, {
+    versionProvider: () => 99,
+    updatedAtProvider: () => "2026-02-23T10:06:00.000Z"
+  });
+  const traceSummary = await sessionTraceWriter.writeTrace(trace);
+  if (traceSummary.writtenRows !== 1) {
+    throw new Error("platform session trace writer smoke failed: expected one written row");
+  }
+  if (sessionTraceClient.lastRequest === undefined) {
+    throw new Error("platform session trace writer smoke failed: no insert request captured");
+  }
+
   const sessionWriteSummary = await sessionWriter.writeTrace(trace);
   if (sessionWriteSummary.writtenSessions !== 1 || sessionWriteSummary.writtenCommits !== 1) {
     throw new Error("platform postgres session writer smoke failed: expected one session and one commit");
@@ -148,6 +171,7 @@ async function main(): Promise<void> {
   console.log("platform manual smoke passed");
   console.log(`checkedFiles=${result.checkedFiles}`);
   console.log(`writerRows=${writeSummary.writtenRows}`);
+  console.log(`traceRows=${traceSummary.writtenRows}`);
   console.log(`pgSessionRows=${sessionWriteSummary.writtenSessions}`);
   console.log(`pgCommitRows=${sessionWriteSummary.writtenCommits}`);
   console.log(`pgSettingsRows=${settingsSummary.writtenSettings}`);

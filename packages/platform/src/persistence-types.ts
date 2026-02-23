@@ -27,6 +27,28 @@ export interface ClickHouseAgentEventRow {
   readonly attributes: Readonly<Record<string, string>>;
 }
 
+export interface ClickHouseSessionTraceRow {
+  readonly session_id: string;
+  readonly version: number;
+  readonly started_at: string;
+  readonly ended_at: string | null;
+  readonly user_id: string;
+  readonly git_repo: string | null;
+  readonly git_branch: string | null;
+  readonly prompt_count: number;
+  readonly tool_call_count: number;
+  readonly api_call_count: number;
+  readonly total_cost_usd: number;
+  readonly total_input_tokens: number;
+  readonly total_output_tokens: number;
+  readonly lines_added: number;
+  readonly lines_removed: number;
+  readonly models_used: readonly string[];
+  readonly tools_used: readonly string[];
+  readonly files_touched: readonly string[];
+  readonly updated_at: string;
+}
+
 export interface ClickHouseInsertRequest<TRow> {
   readonly table: string;
   readonly rows: readonly TRow[];
@@ -38,6 +60,12 @@ export interface ClickHouseInsertClient<TRow> {
 
 export interface ClickHouseEventWriterOptions {
   readonly tableName?: string;
+}
+
+export interface ClickHouseSessionTraceWriterOptions {
+  readonly tableName?: string;
+  readonly versionProvider?: () => number;
+  readonly updatedAtProvider?: () => string;
 }
 
 export interface ClickHouseWriteSummary {
