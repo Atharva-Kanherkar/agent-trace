@@ -134,6 +134,20 @@ export interface HookGitContextProvider {
   readContext(request: HookGitContextRequest): HookGitRepositoryState | undefined;
 }
 
+export interface HookSessionBaseline {
+  readonly repositoryPath?: string;
+  readonly linesAdded: number;
+  readonly linesRemoved: number;
+  readonly filesChanged: readonly string[];
+  readonly capturedAt: string;
+}
+
+export interface HookSessionBaselineStore {
+  read(sessionId: string): HookSessionBaseline | undefined;
+  write(sessionId: string, baseline: HookSessionBaseline): void;
+  delete(sessionId: string): void;
+}
+
 export interface HookHandlerInput {
   readonly rawStdin: string;
   readonly configDir?: string;

@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 
 import type { EventEnvelope } from "../../schema/src/types";
 import { FileCliConfigStore } from "./config-store";
@@ -12,6 +14,8 @@ import type {
   HookGitContextProvider,
   HookGitContextRequest,
   HookGitRepositoryState,
+  HookSessionBaseline,
+  HookSessionBaselineStore,
   HookHandlerInput,
   HookHandlerResult,
   HookPayload,
@@ -100,8 +104,13 @@ function isSessionEndEvent(payload: HookPayload): boolean {
   return eventType === "session_end" || eventType === "sessionend";
 }
 
+function isSessionStartEvent(payload: HookPayload): boolean {
+  const eventType = pickEventType(payload).toLowerCase();
+  return eventType === "session_start" || eventType === "sessionstart";
+}
+
 function shouldAttemptGitEnrichment(payload: HookPayload): boolean {
-  return isGitBashPayload(payload) || isSessionEndEvent(payload);
+  return isGitBashPayload(payload) || isSessionStartEvent(payload) || isSessionEndEvent(payload);
 }
 
 function parseCommitMessage(command: string): string | undefined {
@@ -280,6 +289,133 @@ function getCollectorUrl(store: CliConfigStore, configDir?: string, collectorUrl
   return "http://127.0.0.1:8317/v1/hooks";
 }
 
+interface HookSessionBaselineFileRecord {
+  readonly [sessionId: string]: HookSessionBaseline | undefined;
+}
+
+interface HookSessionBaselineFileShape {
+  readonly sessions: HookSessionBaselineFileRecord;
+}
+
+function normalizeBaseline(baseline: HookSessionBaseline): HookSessionBaseline {
+  return {
+    ...(baseline.repositoryPath !== undefined ? { repositoryPath: baseline.repositoryPath } : {}),
+    linesAdded: Math.max(0, Math.trunc(baseline.linesAdded)),
+    linesRemoved: Math.max(0, Math.trunc(baseline.linesRemoved)),
+    filesChanged: toUniqueStrings(baseline.filesChanged),
+    capturedAt: baseline.capturedAt
+  };
+}
+
+function isHookSessionBaseline(value: unknown): value is HookSessionBaseline {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (typeof record["linesAdded"] !== "number" || typeof record["linesRemoved"] !== "number") {
+    return false;
+  }
+  if (typeof record["capturedAt"] !== "string") {
+    return false;
+  }
+  if (!Array.isArray(record["filesChanged"])) {
+    return false;
+  }
+
+  return (record["filesChanged"] as unknown[]).every((entry) => typeof entry === "string");
+}
+
+function parseBaselineFile(raw: string): HookSessionBaselineFileShape {
+  const parsed = JSON.parse(raw) as unknown;
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return {
+      sessions: {}
+    };
+  }
+  const root = parsed as Record<string, unknown>;
+  const sessionsRaw = root["sessions"];
+  if (typeof sessionsRaw !== "object" || sessionsRaw === null || Array.isArray(sessionsRaw)) {
+    return {
+      sessions: {}
+    };
+  }
+
+  const sessionsRecord = sessionsRaw as Record<string, unknown>;
+  const sessions: Record<string, HookSessionBaseline> = {};
+  Object.keys(sessionsRecord).forEach((sessionId) => {
+    const candidate = sessionsRecord[sessionId];
+    if (!isHookSessionBaseline(candidate)) {
+      return;
+    }
+    sessions[sessionId] = normalizeBaseline(candidate);
+  });
+
+  return {
+    sessions
+  };
+}
+
+class FileHookSessionBaselineStore implements HookSessionBaselineStore {
+  private readonly baselinePath: string;
+
+  public constructor(store: CliConfigStore, configDir?: string) {
+    this.baselinePath = path.join(store.resolveConfigDir(configDir), "hook-session-baselines.json");
+  }
+
+  private readState(): HookSessionBaselineFileShape {
+    try {
+      if (!fs.existsSync(this.baselinePath)) {
+        return {
+          sessions: {}
+        };
+      }
+      const raw = fs.readFileSync(this.baselinePath, "utf8");
+      return parseBaselineFile(raw);
+    } catch {
+      return {
+        sessions: {}
+      };
+    }
+  }
+
+  private writeState(state: HookSessionBaselineFileShape): void {
+    const dir = path.dirname(this.baselinePath);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(this.baselinePath, JSON.stringify(state, null, 2), "utf8");
+  }
+
+  public read(sessionId: string): HookSessionBaseline | undefined {
+    const state = this.readState();
+    return state.sessions[sessionId];
+  }
+
+  public write(sessionId: string, baseline: HookSessionBaseline): void {
+    const state = this.readState();
+    const next: HookSessionBaselineFileShape = {
+      sessions: {
+        ...state.sessions,
+        [sessionId]: normalizeBaseline(baseline)
+      }
+    };
+    this.writeState(next);
+  }
+
+  public delete(sessionId: string): void {
+    const state = this.readState();
+    if (!(sessionId in state.sessions)) {
+      return;
+    }
+    const sessions: Record<string, HookSessionBaseline | undefined> = {
+      ...state.sessions
+    };
+    delete sessions[sessionId];
+    this.writeState({
+      sessions
+    });
+  }
+}
+
 function runGitCommand(
   args: readonly string[],
   repositoryPath?: string
@@ -334,29 +470,78 @@ export class ShellHookGitContextProvider implements HookGitContextProvider {
 
 function enrichHookPayloadWithGitContext(
   payload: HookPayload,
-  provider: HookGitContextProvider
+  provider: HookGitContextProvider,
+  baselineStore: HookSessionBaselineStore,
+  now: string
 ): {
   readonly payload: HookPayload;
   readonly enriched: boolean;
+  readonly usedSessionBaselineDelta: boolean;
 } {
   if (!shouldAttemptGitEnrichment(payload)) {
     return {
       payload,
-      enriched: false
+      enriched: false,
+      usedSessionBaselineDelta: false
     };
   }
 
   const record = payload as Record<string, unknown>;
   const command = pickCommand(payload);
-  const includeDiffStats = (command !== undefined && command.includes(" commit ")) || isSessionEndEvent(payload);
-  const diffSource = isSessionEndEvent(payload) ? "working_tree" : "head_commit";
+  const sessionStartEvent = isSessionStartEvent(payload);
+  const sessionEndEvent = isSessionEndEvent(payload);
+  const includeDiffStats =
+    (command !== undefined && command.includes(" commit ")) || sessionStartEvent || sessionEndEvent;
+  const diffSource = sessionStartEvent || sessionEndEvent ? "working_tree" : "head_commit";
   const repositoryPath = pickRepositoryPath(payload);
+  const sessionId = pickSessionId(payload);
   const contextRequest: HookGitContextRequest = {
     includeDiffStats,
     ...(includeDiffStats ? { diffSource } : {}),
     ...(repositoryPath !== undefined ? { repositoryPath } : {})
   };
   const gitContext = provider.readContext(contextRequest);
+  let usedSessionBaselineDelta = false;
+
+  if (sessionStartEvent && sessionId !== "unknown_session" && gitContext !== undefined) {
+    baselineStore.write(sessionId, {
+      ...(repositoryPath !== undefined ? { repositoryPath } : {}),
+      linesAdded: gitContext.linesAdded ?? 0,
+      linesRemoved: gitContext.linesRemoved ?? 0,
+      filesChanged: gitContext.filesChanged ?? [],
+      capturedAt: now
+    });
+  }
+
+  let linesAdded = gitContext?.linesAdded;
+  let linesRemoved = gitContext?.linesRemoved;
+  let filesChanged = gitContext?.filesChanged;
+
+  if (sessionStartEvent) {
+    linesAdded = undefined;
+    linesRemoved = undefined;
+    filesChanged = undefined;
+  }
+
+  if (sessionEndEvent && sessionId !== "unknown_session") {
+    const baseline = baselineStore.read(sessionId);
+    if (baseline !== undefined && gitContext !== undefined) {
+      const currentLinesAdded = gitContext.linesAdded ?? 0;
+      const currentLinesRemoved = gitContext.linesRemoved ?? 0;
+      linesAdded = Math.max(0, currentLinesAdded - baseline.linesAdded);
+      linesRemoved = Math.max(0, currentLinesRemoved - baseline.linesRemoved);
+
+      const currentFiles = gitContext.filesChanged ?? [];
+      if (currentFiles.length > 0) {
+        const baselineFiles = new Set(baseline.filesChanged);
+        const deltaFiles = currentFiles.filter((filePath) => !baselineFiles.has(filePath));
+        filesChanged = deltaFiles.length > 0 ? deltaFiles : currentFiles;
+      }
+      usedSessionBaselineDelta = true;
+    }
+    baselineStore.delete(sessionId);
+  }
+
   const patch: Record<string, unknown> = {};
 
   const commitMessage = command === undefined ? undefined : parseCommitMessage(command);
@@ -376,25 +561,26 @@ function enrichHookPayloadWithGitContext(
   }
 
   const existingLinesAdded = readNumber(record, "lines_added") ?? readNumber(record, "linesAdded");
-  if (existingLinesAdded === undefined && gitContext?.linesAdded !== undefined) {
-    patch["lines_added"] = gitContext.linesAdded;
+  if (existingLinesAdded === undefined && linesAdded !== undefined) {
+    patch["lines_added"] = linesAdded;
   }
 
   const existingLinesRemoved = readNumber(record, "lines_removed") ?? readNumber(record, "linesRemoved");
-  if (existingLinesRemoved === undefined && gitContext?.linesRemoved !== undefined) {
-    patch["lines_removed"] = gitContext.linesRemoved;
+  if (existingLinesRemoved === undefined && linesRemoved !== undefined) {
+    patch["lines_removed"] = linesRemoved;
   }
 
   const existingFilesChanged =
     readStringArray(record, "files_changed") ?? readStringArray(record, "filesChanged");
-  if (existingFilesChanged === undefined && gitContext?.filesChanged !== undefined) {
-    patch["files_changed"] = gitContext.filesChanged;
+  if (existingFilesChanged === undefined && filesChanged !== undefined) {
+    patch["files_changed"] = filesChanged;
   }
 
   if (Object.keys(patch).length === 0) {
     return {
       payload,
-      enriched: false
+      enriched: false,
+      usedSessionBaselineDelta
     };
   }
 
@@ -403,7 +589,8 @@ function enrichHookPayloadWithGitContext(
       ...payload,
       ...patch
     },
-    enriched: true
+    enriched: true,
+    usedSessionBaselineDelta
   };
 }
 
@@ -492,9 +679,11 @@ export function runHookHandler(
 
   const now = input.nowIso ?? new Date().toISOString();
   const privacyTier = getPrivacyTier(store, input.configDir);
-  const enrichment = enrichHookPayloadWithGitContext(payload, gitContextProvider);
+  const baselineStore = new FileHookSessionBaselineStore(store, input.configDir);
+  const enrichment = enrichHookPayloadWithGitContext(payload, gitContextProvider, baselineStore, now);
   const envelope = toEnvelope(enrichment.payload, privacyTier, now, {
-    ...(enrichment.enriched ? { git_enriched: "1" } : {})
+    ...(enrichment.enriched ? { git_enriched: "1" } : {}),
+    ...(enrichment.usedSessionBaselineDelta ? { git_session_delta: "1" } : {})
   });
   const errors = validateEnvelope(envelope);
   if (errors.length > 0) {

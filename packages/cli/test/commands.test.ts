@@ -179,16 +179,31 @@ class MockCollectorClient implements CollectorHttpClient {
 }
 
 class MockGitContextProvider implements HookGitContextProvider {
-  private readonly state: HookGitRepositoryState | undefined;
+  private readonly states: HookGitRepositoryState[];
+  private stateIndex = 0;
   public lastRequest: HookGitContextRequest | undefined;
 
-  public constructor(state?: HookGitRepositoryState) {
-    this.state = state;
+  public constructor(state?: HookGitRepositoryState | readonly HookGitRepositoryState[]) {
+    if (Array.isArray(state)) {
+      this.states = [...state];
+    } else if (state !== undefined) {
+      this.states = [state as HookGitRepositoryState];
+    } else {
+      this.states = [];
+    }
   }
 
   public readContext(request: HookGitContextRequest): HookGitRepositoryState | undefined {
     this.lastRequest = request;
-    return this.state;
+    const index = this.stateIndex;
+    if (this.states.length === 0) {
+      return undefined;
+    }
+    if (index >= this.states.length) {
+      return this.states.at(-1);
+    }
+    this.stateIndex += 1;
+    return this.states[index];
   }
 }
 
@@ -351,4 +366,64 @@ test("runHookHandler enriches session_end events with working tree git stats", (
     includeDiffStats: true,
     diffSource: "working_tree"
   });
+});
+
+test("runHookHandler applies session baseline delta between session_start and session_end", () => {
+  const configDir = createTempConfigDir();
+  const store = new FileCliConfigStore();
+  const provider = new MockGitContextProvider([
+    {
+      branch: "main",
+      headSha: "sha_baseline_start",
+      linesAdded: 5,
+      linesRemoved: 2,
+      filesChanged: ["README.md"]
+    },
+    {
+      branch: "main",
+      headSha: "sha_baseline_end",
+      linesAdded: 14,
+      linesRemoved: 6,
+      filesChanged: ["README.md", "src/runtime.ts"]
+    }
+  ]);
+
+  const startResult = runHookHandler(
+    {
+      rawStdin: JSON.stringify({
+        event: "session_start",
+        session_id: "sess_delta_001",
+        project_path: configDir
+      }),
+      configDir,
+      nowIso: "2026-02-23T12:00:00.000Z"
+    },
+    store,
+    provider
+  );
+  assert.equal(startResult.ok, true);
+
+  const endResult = runHookHandler(
+    {
+      rawStdin: JSON.stringify({
+        event: "session_end",
+        session_id: "sess_delta_001",
+        project_path: configDir
+      }),
+      configDir,
+      nowIso: "2026-02-23T12:20:00.000Z"
+    },
+    store,
+    provider
+  );
+  assert.equal(endResult.ok, true);
+  if (endResult.ok) {
+    const payload = endResult.envelope.payload as Record<string, unknown>;
+    assert.equal(payload["lines_added"], 9);
+    assert.equal(payload["lines_removed"], 4);
+    assert.deepEqual(payload["files_changed"], ["src/runtime.ts"]);
+    assert.equal(endResult.envelope.attributes?.["git_session_delta"], "1");
+  }
+
+  fs.rmSync(configDir, { recursive: true, force: true });
 });
