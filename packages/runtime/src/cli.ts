@@ -31,6 +31,7 @@ async function main(): Promise<void> {
         readonly postgresStatements: number;
       }
     | undefined;
+  let hydratedSessionTraces: number | undefined;
   let runtimeHandle:
     | { readonly mode: "in-memory"; readonly runtime: InMemoryRuntime; close(): Promise<void> }
     | { readonly mode: "db-backed"; readonly runtime: InMemoryRuntime; close(): Promise<void> };
@@ -50,13 +51,16 @@ async function main(): Promise<void> {
       postgresStatements: migrationResult.postgres.executedStatements
     };
 
+    const dbRuntime = createDatabaseBackedRuntime({
+      startedAtMs,
+      clickHouse: dbConfig.clickHouse,
+      postgres: dbConfig.postgres
+    });
+    hydratedSessionTraces = await dbRuntime.hydratedSessionTraces;
+
     runtimeHandle = {
       mode: "db-backed",
-      ...createDatabaseBackedRuntime({
-        startedAtMs,
-        clickHouse: dbConfig.clickHouse,
-        postgres: dbConfig.postgres
-      })
+      ...dbRuntime
     };
   }
 
@@ -77,6 +81,9 @@ async function main(): Promise<void> {
   if (migrationSummary !== undefined) {
     process.stdout.write(`migrations.clickhouse.statements=${String(migrationSummary.clickHouseStatements)}\n`);
     process.stdout.write(`migrations.postgres.statements=${String(migrationSummary.postgresStatements)}\n`);
+  }
+  if (hydratedSessionTraces !== undefined) {
+    process.stdout.write(`hydrated.session_traces=${String(hydratedSessionTraces)}\n`);
   }
   process.stdout.write(`collector=${servers.collectorAddress}\n`);
   process.stdout.write(`api=${servers.apiAddress}\n`);

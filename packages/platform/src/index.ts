@@ -1,4 +1,5 @@
 export * from "./clickhouse-event-writer";
+export * from "./clickhouse-session-trace-reader";
 export * from "./clickhouse-session-trace-writer";
 export * from "./database-adapters";
 export * from "./migration-manifest";

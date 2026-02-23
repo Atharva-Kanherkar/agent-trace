@@ -5,6 +5,7 @@ import type {
   ClickHouseSessionTraceRow,
   ClickHouseConnectionOptions,
   ClickHouseInsertClient,
+  ClickHouseQueryClient,
   PostgresConnectionOptions,
   PostgresCommitRow,
   PostgresSessionPersistenceClient,
@@ -59,7 +60,9 @@ export interface InMemoryRuntimeOptions {
   readonly persistence?: RuntimePersistence;
 }
 
-export interface RuntimeClosableClickHouseClient extends ClickHouseInsertClient<ClickHouseAgentEventRow> {
+export interface RuntimeClosableClickHouseClient
+  extends ClickHouseInsertClient<ClickHouseAgentEventRow>, ClickHouseQueryClient
+{
   close(): Promise<void>;
 }
 
@@ -82,9 +85,12 @@ export interface DatabaseBackedRuntimeOptions {
   readonly clickHouse: ClickHouseConnectionOptions;
   readonly postgres: PostgresConnectionOptions;
   readonly factories?: RuntimeDatabaseClientFactories;
+  readonly hydrateFromClickHouse?: boolean;
+  readonly bootstrapSessionTraceLimit?: number;
 }
 
 export interface DatabaseBackedRuntime<TRuntime = unknown> {
   readonly runtime: TRuntime;
+  readonly hydratedSessionTraces: Promise<number>;
   close(): Promise<void>;
 }

@@ -6,6 +6,7 @@ import type {
   ClickHouseConnectionOptions,
   ClickHouseInsertClient,
   ClickHouseInsertRequest,
+  ClickHouseQueryClient,
   PostgresConnectionOptions,
   PostgresInstanceSettingRow,
   PostgresPoolClient,
@@ -61,7 +62,7 @@ DO UPDATE SET
   updated_at = NOW()
 `;
 
-type ClickHouseInsertDriver = Pick<ClickHouseClient, "insert" | "close">;
+type ClickHouseInsertDriver = Pick<ClickHouseClient, "insert" | "query" | "close">;
 
 function toClickHouseInsertRequest(
   request: ClickHouseInsertRequest<ClickHouseAgentEventRow>
@@ -94,7 +95,9 @@ async function runInTransaction(
   }
 }
 
-export class ClickHouseSdkInsertClient implements ClickHouseInsertClient<ClickHouseAgentEventRow> {
+export class ClickHouseSdkInsertClient
+  implements ClickHouseInsertClient<ClickHouseAgentEventRow>, ClickHouseQueryClient
+{
   private readonly driver: ClickHouseInsertDriver;
 
   public constructor(driver: ClickHouseInsertDriver) {
@@ -107,6 +110,18 @@ export class ClickHouseSdkInsertClient implements ClickHouseInsertClient<ClickHo
     }
 
     await this.driver.insert(toClickHouseInsertRequest(request));
+  }
+
+  public async queryJsonEachRow<TRow>(query: string): Promise<readonly TRow[]> {
+    const resultSet = await this.driver.query({
+      query,
+      format: "JSONEachRow"
+    });
+    const rows = await resultSet.json<TRow>();
+    if (!Array.isArray(rows)) {
+      return [];
+    }
+    return rows;
   }
 
   public async close(): Promise<void> {

@@ -16,10 +16,17 @@ import type {
 
 class FakeClosableClickHouseClient implements RuntimeClosableClickHouseClient {
   public readonly requests: ClickHouseInsertRequest<ClickHouseAgentEventRow>[] = [];
+  public readonly queries: string[] = [];
+  public readonly queryRows: unknown[] = [];
   public closeCalled = false;
 
   public async insertJsonEachRow(request: ClickHouseInsertRequest<ClickHouseAgentEventRow>): Promise<void> {
     this.requests.push(request);
+  }
+
+  public async queryJsonEachRow<TRow>(query: string): Promise<readonly TRow[]> {
+    this.queries.push(query);
+    return this.queryRows as readonly TRow[];
   }
 
   public async close(): Promise<void> {
@@ -62,6 +69,9 @@ test("createDatabaseBackedRuntime wires persistence through injected db clients"
       createPostgresClient: () => postgresClient
     }
   });
+  const hydratedRows = await wrapped.hydratedSessionTraces;
+  assert.equal(hydratedRows, 0);
+  assert.equal(clickHouseClient.queries.length, 1);
 
   const response = wrapped.runtime.handleCollectorRaw({
     method: "POST",

@@ -19,10 +19,21 @@ interface RecordedQuery {
 
 class FakeClickHouseDriver {
   public readonly insertRequests: unknown[] = [];
+  public readonly queryRequests: unknown[] = [];
+  public queryResultRows: unknown[] = [];
   public closeCalled = false;
 
   public async insert(request: unknown): Promise<void> {
     this.insertRequests.push(request);
+  }
+
+  public async query(request: unknown): Promise<{
+    json<T>(): Promise<T>;
+  }> {
+    this.queryRequests.push(request);
+    return {
+      json: async <T>(): Promise<T> => this.queryResultRows as T
+    };
   }
 
   public async close(): Promise<void> {
@@ -130,6 +141,29 @@ test("ClickHouseSdkInsertClient skips insert call when no rows are provided", as
   });
 
   assert.equal(driver.insertRequests.length, 0);
+});
+
+test("ClickHouseSdkInsertClient maps query request to JSONEachRow format", async () => {
+  const driver = new FakeClickHouseDriver();
+  driver.queryResultRows = [
+    {
+      session_id: "sess_query_001"
+    }
+  ];
+  const client = new ClickHouseSdkInsertClient(
+    driver as unknown as ConstructorParameters<typeof ClickHouseSdkInsertClient>[0]
+  );
+
+  const rows = await client.queryJsonEachRow<{ readonly session_id: string }>("SELECT session_id FROM session_traces");
+
+  assert.equal(driver.queryRequests.length, 1);
+  const request = driver.queryRequests[0] as {
+    readonly query?: string;
+    readonly format?: string;
+  };
+  assert.equal(request.query, "SELECT session_id FROM session_traces");
+  assert.equal(request.format, "JSONEachRow");
+  assert.deepEqual(rows, [{ session_id: "sess_query_001" }]);
 });
 
 test("PostgresPgPersistenceClient performs transactional upserts for sessions, commits, and settings", async () => {

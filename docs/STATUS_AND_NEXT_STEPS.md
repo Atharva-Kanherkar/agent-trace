@@ -59,6 +59,7 @@ Updated: 2026-02-23
      - projected traces -> PostgreSQL session/commit writer
    - Pluggable runtime persistence (inject real DB-backed adapters).
    - DB-backed runtime composition factory with lifecycle-managed clients.
+   - DB-backed runtime startup hydrates API repository from ClickHouse `session_traces`.
    - Runtime OTEL sink and startup wiring for OTEL gRPC receiver (`:4717`).
    - Runtime CLI supports env-driven startup mode:
      - in-memory mode by default
@@ -111,6 +112,7 @@ Feature set complete after Stage A:
 3. Collector projection pipeline to update session traces as events arrive.
    - In-memory runtime projection + persistence orchestration complete.
    - DB-backed runtime composition complete.
+   - Runtime startup preloads latest session traces from ClickHouse into API read model.
    - Collector service wiring abstraction complete.
    - Standalone collector + standalone API process binaries complete.
    - Production deployment composition with ClickHouse/PostgreSQL service graph pending.

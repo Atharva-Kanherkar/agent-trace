@@ -2,6 +2,7 @@ import {
   createClickHouseSdkInsertClient,
   createPostgresPgPersistenceClient
 } from "../../platform/src/database-adapters";
+import { ClickHouseSessionTraceReader } from "../../platform/src/clickhouse-session-trace-reader";
 import type { ClickHouseInsertClient, ClickHouseSessionTraceRow } from "../../platform/src/persistence-types";
 import { createWriterBackedRuntimePersistence } from "./persistence";
 import { createInMemoryRuntime, type InMemoryRuntime } from "./runtime";
@@ -17,6 +18,19 @@ const defaultFactories: RuntimeDatabaseClientFactories = {
   createClickHouseClient: (options): RuntimeClosableClickHouseClient => createClickHouseSdkInsertClient(options),
   createPostgresClient: (options): RuntimeClosablePostgresClient => createPostgresPgPersistenceClient(options)
 };
+
+async function hydrateRuntimeFromClickHouse(
+  runtime: InMemoryRuntime,
+  clickHouseClient: RuntimeClosableClickHouseClient,
+  limit: number | undefined
+): Promise<number> {
+  const reader = new ClickHouseSessionTraceReader(clickHouseClient);
+  const traces = await reader.listLatest(limit);
+  traces.forEach((trace) => {
+    runtime.sessionRepository.upsert(trace);
+  });
+  return traces.length;
+}
 
 async function closeClients(
   clickHouseClient: RuntimeClosableClickHouseClient,
@@ -61,9 +75,16 @@ export function createDatabaseBackedRuntime(
     ...(options.startedAtMs !== undefined ? { startedAtMs: options.startedAtMs } : {}),
     persistence
   });
+  const hydratedSessionTraces =
+    options.hydrateFromClickHouse === false
+      ? Promise.resolve(0)
+      : hydrateRuntimeFromClickHouse(runtime, clickHouseClient, options.bootstrapSessionTraceLimit).catch(
+          () => 0
+        );
 
   return {
     runtime,
+    hydratedSessionTraces,
     close: async (): Promise<void> => {
       await closeClients(clickHouseClient, postgresClient);
     }

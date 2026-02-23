@@ -58,6 +58,10 @@ export interface ClickHouseInsertClient<TRow> {
   insertJsonEachRow(request: ClickHouseInsertRequest<TRow>): Promise<void>;
 }
 
+export interface ClickHouseQueryClient {
+  queryJsonEachRow<TRow>(query: string): Promise<readonly TRow[]>;
+}
+
 export interface ClickHouseEventWriterOptions {
   readonly tableName?: string;
 }
