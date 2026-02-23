@@ -16,6 +16,13 @@ function nowIso(inputNowIso?: string): string {
   return new Date().toISOString();
 }
 
+function shouldInstallHooks(value: boolean | undefined): boolean {
+  if (value === undefined) {
+    return true;
+  }
+  return value;
+}
+
 export function runInit(input: InitCommandInput, store: CliConfigStore = new FileCliConfigStore()): InitCommandResult {
   const timestamp = nowIso(input.nowIso);
   const config = {
@@ -29,11 +36,19 @@ export function runInit(input: InitCommandInput, store: CliConfigStore = new Fil
 
   const configPath = store.writeConfig(config, input.configDir);
   const hooksPath = store.writeClaudeHooks(hooks, input.configDir);
+  const installResult = shouldInstallHooks(input.installHooks)
+    ? store.installClaudeHooks(hooks, input.configDir)
+    : {
+        settingsPath: store.resolveClaudeSettingsPath(input.configDir),
+        installed: store.isClaudeHooksInstalled(hooks, input.configDir)
+      };
 
   return {
     ok: true,
     configPath,
     hooksPath,
+    settingsPath: installResult.settingsPath,
+    settingsHooksInstalled: installResult.installed,
     config,
     hooks
   };

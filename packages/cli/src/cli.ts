@@ -18,7 +18,7 @@ async function readStdin(): Promise<string> {
 
 function printUsage(): void {
   process.stdout.write(
-    "usage: agent-trace <init|status|hook-handler> [--config-dir <path>] [--collector-url <url>] [--privacy-tier <1|2|3>] [--forward]\n"
+    "usage: agent-trace <init|status|hook-handler> [--config-dir <path>] [--collector-url <url>] [--privacy-tier <1|2|3>] [--install-hooks|--no-install-hooks] [--forward]\n"
   );
 }
 
@@ -36,7 +36,8 @@ async function main(): Promise<void> {
     const result = runInit({
       ...(args.configDir !== undefined ? { configDir: args.configDir } : {}),
       ...(args.collectorUrl !== undefined ? { collectorUrl: args.collectorUrl } : {}),
-      ...(args.privacyTier !== undefined ? { privacyTier: args.privacyTier } : {})
+      ...(args.privacyTier !== undefined ? { privacyTier: args.privacyTier } : {}),
+      ...(args.installHooks !== undefined ? { installHooks: args.installHooks } : {})
     });
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return;

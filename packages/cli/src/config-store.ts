@@ -2,10 +2,20 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import type { AgentTraceClaudeHookConfig, AgentTraceCliConfig, CliConfigStore } from "./types";
+import type {
+  AgentTraceClaudeHookConfig,
+  AgentTraceCliConfig,
+  CliConfigStore,
+  ClaudeHooksInstallResult,
+  ClaudeSettingsDocument,
+  ClaudeSettingsHookCommand,
+  ClaudeSettingsHookEntry,
+  ClaudeSettingsHooks
+} from "./types";
 
 const CONFIG_FILE_NAME = "agent-trace.json";
 const CLAUDE_HOOKS_FILE_NAME = "agent-trace-claude-hooks.json";
+const CLAUDE_SETTINGS_FILE_NAME = "settings.local.json";
 
 function ensurePrivacyTier(value: unknown): value is 1 | 2 | 3 {
   return value === 1 || value === 2 || value === 3;
@@ -43,6 +53,108 @@ function parseConfig(raw: string): AgentTraceCliConfig | undefined {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+interface ReadSettingsResult {
+  readonly exists: boolean;
+  readonly settings: ClaudeSettingsDocument;
+}
+
+function readSettingsDocument(filePath: string): ReadSettingsResult {
+  if (!fs.existsSync(filePath)) {
+    return {
+      exists: false,
+      settings: {}
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown;
+    if (!isRecord(parsed)) {
+      return {
+        exists: true,
+        settings: {}
+      };
+    }
+    return {
+      exists: true,
+      settings: parsed as ClaudeSettingsDocument
+    };
+  } catch {
+    return {
+      exists: true,
+      settings: {}
+    };
+  }
+}
+
+function toMutableHooks(settings: ClaudeSettingsDocument): Record<string, unknown[]> {
+  const mutableHooks: Record<string, unknown[]> = {};
+  const hooks = settings["hooks"];
+  if (!isRecord(hooks)) {
+    return mutableHooks;
+  }
+
+  for (const [eventName, value] of Object.entries(hooks)) {
+    if (Array.isArray(value)) {
+      mutableHooks[eventName] = [...value];
+      continue;
+    }
+    mutableHooks[eventName] = [];
+  }
+
+  return mutableHooks;
+}
+
+function hasCommandOnEvent(entries: readonly unknown[], expectedCommand: string): boolean {
+  return entries.some((entry) => {
+    if (!isRecord(entry)) {
+      return false;
+    }
+    const hooks = entry["hooks"];
+    if (!Array.isArray(hooks)) {
+      return false;
+    }
+    return hooks.some((hook) => {
+      if (!isRecord(hook)) {
+        return false;
+      }
+      return hook["type"] === "command" && hook["command"] === expectedCommand;
+    });
+  });
+}
+
+function createCommandEntry(command: string): ClaudeSettingsHookEntry {
+  const commandHook: ClaudeSettingsHookCommand = {
+    type: "command",
+    command,
+    timeout: 10
+  };
+  return {
+    hooks: [commandHook]
+  };
+}
+
+function areHooksInstalled(hooksMap: Record<string, unknown[]>, config: AgentTraceClaudeHookConfig): boolean {
+  return config.hooks.every((entry) => {
+    const entries = hooksMap[entry.event] ?? [];
+    return hasCommandOnEvent(entries, entry.command);
+  });
+}
+
+function toSettingsDocument(
+  settings: ClaudeSettingsDocument,
+  hooksMap: Record<string, unknown[]>
+): ClaudeSettingsDocument {
+  const hooks: ClaudeSettingsHooks = hooksMap;
+  return {
+    ...settings,
+    hooks
+  };
+}
+
 export class FileCliConfigStore implements CliConfigStore {
   public resolveConfigDir(configDirOverride?: string): string {
     if (configDirOverride !== undefined && configDirOverride.length > 0) {
@@ -63,6 +175,10 @@ export class FileCliConfigStore implements CliConfigStore {
 
   public resolveHooksPath(configDirOverride?: string): string {
     return path.join(this.resolveConfigDir(configDirOverride), CLAUDE_HOOKS_FILE_NAME);
+  }
+
+  public resolveClaudeSettingsPath(configDirOverride?: string): string {
+    return path.join(this.resolveConfigDir(configDirOverride), CLAUDE_SETTINGS_FILE_NAME);
   }
 
   public readConfig(configDirOverride?: string): AgentTraceCliConfig | undefined {
@@ -91,5 +207,49 @@ export class FileCliConfigStore implements CliConfigStore {
     const hooksPath = this.resolveHooksPath(configDirOverride);
     fs.writeFileSync(hooksPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
     return hooksPath;
+  }
+
+  public installClaudeHooks(
+    config: AgentTraceClaudeHookConfig,
+    configDirOverride?: string
+  ): ClaudeHooksInstallResult {
+    const configDir = this.resolveConfigDir(configDirOverride);
+    fs.mkdirSync(configDir, { recursive: true });
+
+    const settingsPath = this.resolveClaudeSettingsPath(configDirOverride);
+    const read = readSettingsDocument(settingsPath);
+    const hooksMap = toMutableHooks(read.settings);
+    let changed = !read.exists;
+
+    for (const hook of config.hooks) {
+      const eventEntries = hooksMap[hook.event] ?? [];
+      if (!hasCommandOnEvent(eventEntries, hook.command)) {
+        eventEntries.push(createCommandEntry(hook.command));
+        hooksMap[hook.event] = eventEntries;
+        changed = true;
+      }
+    }
+
+    const installed = areHooksInstalled(hooksMap, config);
+    if (changed) {
+      const updatedSettings = toSettingsDocument(read.settings, hooksMap);
+      fs.writeFileSync(settingsPath, `${JSON.stringify(updatedSettings, null, 2)}\n`, "utf8");
+    }
+
+    return {
+      settingsPath,
+      installed
+    };
+  }
+
+  public isClaudeHooksInstalled(config: AgentTraceClaudeHookConfig, configDirOverride?: string): boolean {
+    const settingsPath = this.resolveClaudeSettingsPath(configDirOverride);
+    const read = readSettingsDocument(settingsPath);
+    if (!read.exists) {
+      return false;
+    }
+
+    const hooksMap = toMutableHooks(read.settings);
+    return areHooksInstalled(hooksMap, config);
   }
 }

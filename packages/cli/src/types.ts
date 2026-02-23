@@ -17,11 +17,28 @@ export interface AgentTraceClaudeHookConfig {
   readonly hooks: readonly AgentTraceClaudeHookEntry[];
 }
 
+export interface ClaudeSettingsHookCommand {
+  readonly type: "command";
+  readonly command: string;
+  readonly timeout: number;
+}
+
+export interface ClaudeSettingsHookEntry {
+  readonly hooks: readonly ClaudeSettingsHookCommand[];
+}
+
+export type ClaudeSettingsHooks = Readonly<Record<string, readonly unknown[]>>;
+
+export interface ClaudeSettingsDocument extends Readonly<Record<string, unknown>> {
+  readonly hooks?: ClaudeSettingsHooks;
+}
+
 export interface CliParsedArgs {
   readonly command: CliCommand | undefined;
   readonly configDir?: string;
   readonly collectorUrl?: string;
   readonly privacyTier?: PrivacyTier;
+  readonly installHooks?: boolean;
   readonly forward?: boolean;
 }
 
@@ -37,15 +54,24 @@ export interface CliConfigStore {
   resolveConfigDir(configDirOverride?: string): string;
   resolveConfigPath(configDirOverride?: string): string;
   resolveHooksPath(configDirOverride?: string): string;
+  resolveClaudeSettingsPath(configDirOverride?: string): string;
   readConfig(configDirOverride?: string): AgentTraceCliConfig | undefined;
   writeConfig(config: AgentTraceCliConfig, configDirOverride?: string): string;
   writeClaudeHooks(config: AgentTraceClaudeHookConfig, configDirOverride?: string): string;
+  installClaudeHooks(config: AgentTraceClaudeHookConfig, configDirOverride?: string): ClaudeHooksInstallResult;
+  isClaudeHooksInstalled(config: AgentTraceClaudeHookConfig, configDirOverride?: string): boolean;
+}
+
+export interface ClaudeHooksInstallResult {
+  readonly settingsPath: string;
+  readonly installed: boolean;
 }
 
 export interface InitCommandInput {
   readonly configDir?: string;
   readonly collectorUrl?: string;
   readonly privacyTier?: PrivacyTier;
+  readonly installHooks?: boolean;
   readonly nowIso?: string;
 }
 
@@ -53,6 +79,8 @@ export interface InitCommandResult {
   readonly ok: true;
   readonly configPath: string;
   readonly hooksPath: string;
+  readonly settingsPath: string;
+  readonly settingsHooksInstalled: boolean;
   readonly config: AgentTraceCliConfig;
   readonly hooks: AgentTraceClaudeHookConfig;
 }
@@ -69,6 +97,8 @@ export interface StatusCommandResultConfigured {
   readonly configPath: string;
   readonly hooksPath: string;
   readonly hooksConfigured: boolean;
+  readonly settingsPath: string;
+  readonly settingsHooksInstalled: boolean;
   readonly config: AgentTraceCliConfig;
 }
 

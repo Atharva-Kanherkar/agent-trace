@@ -21,12 +21,21 @@ export function parseArgs(argv: readonly string[]): CliParsedArgs {
   let configDir: string | undefined;
   let collectorUrl: string | undefined;
   let privacyTier: PrivacyTier | undefined;
+  let installHooks: boolean | undefined;
   let forward = false;
 
   for (let i = 3; i < argv.length; i += 1) {
     const token = argv[i];
     if (token === "--forward") {
       forward = true;
+      continue;
+    }
+    if (token === "--install-hooks") {
+      installHooks = true;
+      continue;
+    }
+    if (token === "--no-install-hooks") {
+      installHooks = false;
       continue;
     }
     if (token === "--config-dir") {
@@ -58,6 +67,7 @@ export function parseArgs(argv: readonly string[]): CliParsedArgs {
     ...(configDir !== undefined ? { configDir } : {}),
     ...(collectorUrl !== undefined ? { collectorUrl } : {}),
     ...(privacyTier !== undefined ? { privacyTier } : {}),
+    ...(installHooks !== undefined ? { installHooks } : {}),
     ...(forward ? { forward: true } : {})
   };
 }

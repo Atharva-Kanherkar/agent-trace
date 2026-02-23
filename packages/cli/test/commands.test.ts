@@ -22,6 +22,7 @@ test("parseArgs parses supported command options", () => {
     "http://127.0.0.1:8317/v1/hooks",
     "--privacy-tier",
     "2",
+    "--no-install-hooks",
     "--forward"
   ]);
 
@@ -29,6 +30,7 @@ test("parseArgs parses supported command options", () => {
   assert.equal(parsed.configDir, "/tmp/config-dir");
   assert.equal(parsed.collectorUrl, "http://127.0.0.1:8317/v1/hooks");
   assert.equal(parsed.privacyTier, 2);
+  assert.equal(parsed.installHooks, false);
   assert.equal(parsed.forward, true);
 });
 
@@ -52,8 +54,10 @@ test("runInit writes config and runStatus reports configured state", () => {
   assert.equal(initResult.ok, true);
   assert.equal(fs.existsSync(initResult.configPath), true);
   assert.equal(fs.existsSync(initResult.hooksPath), true);
+  assert.equal(fs.existsSync(initResult.settingsPath), true);
   assert.equal(initResult.config.privacyTier, 3);
   assert.equal(initResult.config.hookCommand, "agent-trace hook-handler --forward");
+  assert.equal(initResult.settingsHooksInstalled, true);
   assert.equal(initResult.hooks.hooks.length, 5);
   assert.equal(initResult.hooks.hooks[0]?.event, "SessionStart");
 
@@ -64,6 +68,33 @@ test("runInit writes config and runStatus reports configured state", () => {
     assert.equal(after.config.privacyTier, 3);
     assert.equal(after.hooksConfigured, true);
     assert.ok(after.hooksPath.endsWith("agent-trace-claude-hooks.json"));
+    assert.equal(after.settingsHooksInstalled, true);
+    assert.ok(after.settingsPath.endsWith("settings.local.json"));
+  }
+
+  fs.rmSync(configDir, { recursive: true, force: true });
+});
+
+test("runInit skips settings installation when installHooks=false", () => {
+  const configDir = createTempConfigDir();
+  const store = new FileCliConfigStore();
+
+  const initResult = runInit(
+    {
+      configDir,
+      installHooks: false,
+      nowIso: "2026-02-23T12:00:00.000Z"
+    },
+    store
+  );
+
+  assert.equal(initResult.settingsHooksInstalled, false);
+  assert.equal(fs.existsSync(initResult.settingsPath), false);
+
+  const status = runStatus(configDir, store);
+  assert.equal(status.ok, true);
+  if (status.ok) {
+    assert.equal(status.settingsHooksInstalled, false);
   }
 
   fs.rmSync(configDir, { recursive: true, force: true });
