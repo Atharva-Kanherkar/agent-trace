@@ -116,7 +116,7 @@ Feature set complete after Stage A:
    - Runtime startup preloads latest session traces from ClickHouse into API read model.
    - Collector service wiring abstraction complete.
    - Standalone collector + standalone API process binaries complete.
-   - Production deployment composition with ClickHouse/PostgreSQL service graph pending.
+   - Production deployment composition with ClickHouse/PostgreSQL service graph complete.
 4. Auto-migrations:
    - Platform migration runner complete.
    - Runtime DB mode auto-migration on startup complete.
@@ -161,6 +161,8 @@ Feature set complete after Stage C:
    - split collector/api/dashboard compose topology complete (runtime-backed services).
    - dedicated per-service runtime role startup in compose topology complete.
 3. Operational docs and startup scripts.
+   - Scripted stack lifecycle (`start-stack.sh`, `stop-stack.sh`, `health-check.sh`) complete.
+   - Operations runbook (`docs/OPERATIONS.md`) complete.
 
 Feature set complete after Stage D:
 

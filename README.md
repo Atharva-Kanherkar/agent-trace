@@ -62,3 +62,14 @@ Dev override (bind-mount source):
 ```bash
 docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up --build
 ```
+
+Helper scripts:
+
+```bash
+./scripts/start-stack.sh
+./scripts/start-stack.sh dev
+./scripts/health-check.sh
+./scripts/stop-stack.sh
+```
+
+Detailed runbook: `docs/OPERATIONS.md`.
