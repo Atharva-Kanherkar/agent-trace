@@ -15,6 +15,7 @@ Updated: 2026-02-23
    - Raw HTTP adapter and Node HTTP handler creator.
    - Collector service wrapper for accepted-event processing pipeline + processing health stats.
    - Transcript JSONL parser foundation (`parseTranscriptJsonl`) for Layer 3 ingestion.
+   - Session-end transcript ingestion processor (`createTranscriptIngestionProcessor`) with sink integration.
 3. `@agent-trace/api`
    - Typed query handler (`/health`, `/v1/sessions`, `/v1/sessions/:id`, `/timeline`).
    - In-memory session repository.
@@ -105,7 +106,8 @@ Feature set complete after Stage B:
 2. OTEL ingest receiver path integration.
 3. Transcript ingestion parser path.
    - Base parser implementation complete.
-   - SessionEnd orchestration + ingestion trigger wiring pending.
+   - SessionEnd ingestion processor abstraction complete.
+   - Default collector wiring for transcript ingestion path pending.
 
 Feature set complete after Stage C:
 

@@ -4,13 +4,20 @@ import path from "node:path";
 
 import {
   createCollectorService,
+  createTranscriptIngestionProcessor,
   handleCollectorRawHttpRequest,
   handleCollectorRequest,
   InMemoryCollectorStore,
   parseTranscriptJsonl
 } from "../src";
 import { createSampleCollectorEvent, type SampleCollectorEvent } from "../src/samples";
-import type { CollectorHandlerDependencies, CollectorValidationResult } from "../src/types";
+import type {
+  CollectorHandlerDependencies,
+  CollectorValidationResult,
+  TranscriptEventPayload,
+  TranscriptIngestionSink
+} from "../src/types";
+import type { EventEnvelope } from "../../schema/src/types";
 
 function createDependencies(
   store: InMemoryCollectorStore<SampleCollectorEvent>
@@ -61,7 +68,7 @@ function createDependencies(
   };
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const store = new InMemoryCollectorStore<SampleCollectorEvent>();
   const dependencies = createDependencies(store);
   const event = createSampleCollectorEvent({
@@ -161,11 +168,51 @@ function main(): void {
     throw new Error("collector smoke failed: transcript parser did not produce expected event");
   }
 
+  const transcriptIngestionBatches: Array<readonly EventEnvelope<TranscriptEventPayload>[]> = [];
+  const transcriptSink: TranscriptIngestionSink = {
+    ingestTranscriptEvents: async (events: readonly EventEnvelope<TranscriptEventPayload>[]): Promise<void> => {
+      transcriptIngestionBatches.push(events);
+    }
+  };
+  const transcriptProcessor = createTranscriptIngestionProcessor({
+    sink: transcriptSink
+  });
+  const transcriptDir2 = fs.mkdtempSync(path.join(os.tmpdir(), "agent-trace-collector-smoke-ingest-"));
+  const transcriptPath2 = path.join(transcriptDir2, "session.jsonl");
+  fs.writeFileSync(
+    transcriptPath2,
+    `${JSON.stringify({
+      session_id: "sess_manual_001",
+      event: "assistant_response",
+      timestamp: "2026-02-23T10:00:00.000Z"
+    })}\n`,
+    "utf8"
+  );
+  await transcriptProcessor.processAcceptedEvent({
+    schemaVersion: "1.0",
+    source: "hook",
+    sourceVersion: "agent-trace-cli-v0.1",
+    eventId: "evt_manual_transcript_ingest",
+    sessionId: "sess_manual_001",
+    eventType: "session_end",
+    eventTimestamp: "2026-02-23T10:10:00.000Z",
+    ingestedAt: "2026-02-23T10:10:01.000Z",
+    privacyTier: 1,
+    payload: {
+      transcript_path: transcriptPath2
+    }
+  });
+  if (transcriptIngestionBatches.length !== 1 || transcriptIngestionBatches[0]?.length !== 1) {
+    throw new Error("collector smoke failed: transcript ingestion processor did not forward parsed events");
+  }
+  fs.rmSync(transcriptDir2, { recursive: true, force: true });
+
   console.log("collector manual smoke passed");
   console.log(`storedEvents=${stats.payload.stats.storedEvents}`);
   console.log(`dedupedEvents=${stats.payload.stats.dedupedEvents}`);
   console.log(`serviceAcceptedEvents=${service.getProcessingStats().acceptedEvents}`);
   console.log(`transcriptParsedEvents=${transcriptParse.parsedEvents.length}`);
+  console.log(`transcriptIngestionBatches=${transcriptIngestionBatches.length}`);
 }
 
-main();
+void main();

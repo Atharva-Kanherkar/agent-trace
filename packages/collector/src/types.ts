@@ -124,3 +124,12 @@ export interface TranscriptParseFailure {
 }
 
 export type TranscriptParseResult = TranscriptParseSuccess | TranscriptParseFailure;
+
+export interface TranscriptIngestionSink {
+  ingestTranscriptEvents(events: readonly EventEnvelope<TranscriptEventPayload>[]): Promise<void>;
+}
+
+export interface TranscriptIngestionProcessorOptions {
+  readonly sink: TranscriptIngestionSink;
+  readonly onParseErrors?: (errors: readonly string[]) => void;
+}
