@@ -56,6 +56,9 @@ Updated: 2026-02-23
    - Pluggable runtime persistence (inject real DB-backed adapters).
    - DB-backed runtime composition factory with lifecycle-managed clients.
    - Runtime OTEL sink and startup wiring for OTEL gRPC receiver (`:4717`).
+   - Runtime CLI supports env-driven startup mode:
+     - in-memory mode by default
+     - DB-backed mode when ClickHouse/PostgreSQL env config is provided
 
 ## Quality gates
 

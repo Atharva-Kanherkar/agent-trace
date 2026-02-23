@@ -72,6 +72,11 @@ export interface RuntimeDatabaseClientFactories {
   createPostgresClient(options: PostgresConnectionOptions): RuntimeClosablePostgresClient;
 }
 
+export interface RuntimeDatabaseConfig {
+  readonly clickHouse: ClickHouseConnectionOptions;
+  readonly postgres: PostgresConnectionOptions;
+}
+
 export interface DatabaseBackedRuntimeOptions {
   readonly startedAtMs?: number;
   readonly clickHouse: ClickHouseConnectionOptions;
