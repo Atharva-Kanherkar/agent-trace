@@ -2,7 +2,9 @@ import type { ApiRawHttpRequest, ApiResponse } from "../../api/src/types";
 import type { CollectorRawHttpRequest, CollectorResponse } from "../../collector/src/types";
 import type {
   ClickHouseAgentEventRow,
+  ClickHouseConnectionOptions,
   ClickHouseInsertClient,
+  PostgresConnectionOptions,
   PostgresCommitRow,
   PostgresSessionPersistenceClient,
   PostgresSessionRow
@@ -50,4 +52,29 @@ export interface RuntimePersistenceClients {
 export interface InMemoryRuntimeOptions {
   readonly startedAtMs?: number;
   readonly persistence?: RuntimePersistence;
+}
+
+export interface RuntimeClosableClickHouseClient extends ClickHouseInsertClient<ClickHouseAgentEventRow> {
+  close(): Promise<void>;
+}
+
+export interface RuntimeClosablePostgresClient extends PostgresSessionPersistenceClient {
+  close(): Promise<void>;
+}
+
+export interface RuntimeDatabaseClientFactories {
+  createClickHouseClient(options: ClickHouseConnectionOptions): RuntimeClosableClickHouseClient;
+  createPostgresClient(options: PostgresConnectionOptions): RuntimeClosablePostgresClient;
+}
+
+export interface DatabaseBackedRuntimeOptions {
+  readonly startedAtMs?: number;
+  readonly clickHouse: ClickHouseConnectionOptions;
+  readonly postgres: PostgresConnectionOptions;
+  readonly factories?: RuntimeDatabaseClientFactories;
+}
+
+export interface DatabaseBackedRuntime<TRuntime = unknown> {
+  readonly runtime: TRuntime;
+  close(): Promise<void>;
 }

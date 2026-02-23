@@ -41,6 +41,7 @@ Updated: 2026-02-23
      - accepted events -> ClickHouse event writer
      - projected traces -> PostgreSQL session/commit writer
    - Pluggable runtime persistence (inject real DB-backed adapters).
+   - DB-backed runtime composition factory with lifecycle-managed clients.
 
 ## Quality gates
 
@@ -85,6 +86,7 @@ Feature set complete after Stage A:
    - Runtime integration path for injected DB adapters complete.
 3. Collector projection pipeline to update session traces as events arrive.
    - In-memory runtime projection + persistence orchestration complete.
+   - DB-backed runtime composition complete.
    - Production collector service wiring pending.
 
 Feature set complete after Stage B:
