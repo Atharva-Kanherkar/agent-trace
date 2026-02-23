@@ -24,11 +24,13 @@ export interface RuntimeStartOptions {
   readonly host?: string;
   readonly collectorPort?: number;
   readonly apiPort?: number;
+  readonly otelGrpcAddress?: string;
 }
 
 export interface RuntimeStartedServers {
   readonly collectorAddress: string;
   readonly apiAddress: string;
+  readonly otelGrpcAddress?: string;
   close(): Promise<void>;
 }
 

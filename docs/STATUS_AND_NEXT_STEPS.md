@@ -48,6 +48,7 @@ Updated: 2026-02-23
      - projected traces -> PostgreSQL session/commit writer
    - Pluggable runtime persistence (inject real DB-backed adapters).
    - DB-backed runtime composition factory with lifecycle-managed clients.
+   - Runtime OTEL sink and startup wiring for OTEL gRPC receiver (`:4717`).
 
 ## Quality gates
 
@@ -108,7 +109,8 @@ Feature set complete after Stage B:
 2. OTEL ingest receiver path integration.
    - OTEL payload normalization logic complete.
    - gRPC receiver transport implementation complete.
-   - Default collector runtime wiring for `:4717` startup pending.
+   - Runtime startup wiring for `:4717` complete.
+   - Standalone collector process wiring pending.
 3. Transcript ingestion parser path.
    - Base parser implementation complete.
    - SessionEnd ingestion processor abstraction complete.

@@ -2,9 +2,10 @@ import http from "node:http";
 
 import { handleApiRawHttpRequest, InMemorySessionRepository } from "../../api/src";
 import { createApiHttpHandler } from "../../api/src/http";
-import { handleCollectorRawHttpRequest, InMemoryCollectorStore } from "../../collector/src";
+import { handleCollectorRawHttpRequest, InMemoryCollectorStore, startOtelGrpcReceiver } from "../../collector/src";
 import { createCollectorHttpHandler } from "../../collector/src/http";
 import type { CollectorHandlerDependencies, CollectorValidationResult } from "../../collector/src/types";
+import type { OtelEventsSink, OtelGrpcReceiverHandle } from "../../collector/src/types";
 import { validateEventEnvelope } from "../../schema/src/validators";
 import { InMemoryRuntimePersistence } from "./persistence";
 import type {
@@ -71,6 +72,33 @@ export interface InMemoryRuntime extends RuntimeRequestHandlers {
   readonly persistence: RuntimePersistence;
 }
 
+async function projectAndPersistEvent(
+  event: RuntimeEnvelope,
+  sessionRepository: InMemorySessionRepository,
+  persistence: RuntimePersistence
+): Promise<void> {
+  const current = sessionRepository.getBySessionId(event.sessionId);
+  const projected = projectEnvelopeToTrace(current, event);
+  sessionRepository.upsert(projected);
+  await persistence.persistAcceptedEvent(event, projected);
+}
+
+export function createRuntimeOtelSink(runtime: InMemoryRuntime): OtelEventsSink {
+  return {
+    ingestOtelEvents: async (events): Promise<void> => {
+      for (const event of events) {
+        const runtimeEvent = event as RuntimeEnvelope;
+        const ingest = runtime.collectorStore.ingest(runtimeEvent, runtimeEvent.eventId);
+        if (!ingest.accepted) {
+          continue;
+        }
+
+        await projectAndPersistEvent(runtimeEvent, runtime.sessionRepository, runtime.persistence);
+      }
+    }
+  };
+}
+
 function resolveRuntimeOptions(input: number | InMemoryRuntimeOptions | undefined): {
   readonly startedAtMs: number;
   readonly persistence: RuntimePersistence;
@@ -102,10 +130,7 @@ export function createInMemoryRuntime(input?: number | InMemoryRuntimeOptions): 
     getEventId: (event: RuntimeEnvelope): string => event.eventId,
     store: collectorStore,
     onAcceptedEvent: async (event: RuntimeEnvelope): Promise<void> => {
-      const current = sessionRepository.getBySessionId(event.sessionId);
-      const projected = projectEnvelopeToTrace(current, event);
-      sessionRepository.upsert(projected);
-      await persistence.persistAcceptedEvent(event, projected);
+      await projectAndPersistEvent(event, sessionRepository, persistence);
     }
   };
 
@@ -131,6 +156,7 @@ export async function startInMemoryRuntimeServers(
   const host = options.host ?? "127.0.0.1";
   const collectorPort = options.collectorPort ?? 8317;
   const apiPort = options.apiPort ?? 8318;
+  const otelGrpcAddress = options.otelGrpcAddress ?? `${host}:4717`;
 
   const collectorServer = http.createServer(createCollectorHttpHandler(runtime.collectorDependencies));
   const apiServer = http.createServer(
@@ -139,6 +165,12 @@ export async function startInMemoryRuntimeServers(
       repository: runtime.sessionRepository
     })
   );
+  let otelReceiver: OtelGrpcReceiverHandle | undefined;
+  otelReceiver = await startOtelGrpcReceiver({
+    address: otelGrpcAddress,
+    privacyTier: 1,
+    sink: createRuntimeOtelSink(runtime)
+  });
 
   await listen(collectorServer, collectorPort, host);
   await listen(apiServer, apiPort, host);
@@ -146,9 +178,13 @@ export async function startInMemoryRuntimeServers(
   return {
     collectorAddress: toAddress(collectorServer),
     apiAddress: toAddress(apiServer),
+    otelGrpcAddress: otelReceiver.address,
     close: async (): Promise<void> => {
       await close(collectorServer);
       await close(apiServer);
+      if (otelReceiver !== undefined) {
+        await otelReceiver.close();
+      }
     }
   };
 }
