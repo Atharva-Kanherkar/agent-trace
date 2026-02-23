@@ -194,3 +194,38 @@ export interface OtelGrpcReceiverHandle {
   getStats(): OtelGrpcReceiverStats;
   close(): Promise<void>;
 }
+
+export type CollectorEnvelopePayload = Readonly<Record<string, unknown>>;
+export type CollectorEnvelopeEvent = EventEnvelope<CollectorEnvelopePayload>;
+
+export interface EnvelopeCollectorServiceOptions {
+  readonly startedAtMs?: number;
+  readonly onAcceptedEvent?: (event: CollectorEnvelopeEvent) => void | Promise<void>;
+  readonly processor?: CollectorAcceptedEventProcessor<CollectorEnvelopeEvent>;
+  readonly enableTranscriptIngestion?: boolean;
+}
+
+export interface EnvelopeCollectorService {
+  readonly dependencies: CollectorHandlerDependencies<CollectorEnvelopeEvent>;
+  readonly store: CollectorEventStore<CollectorEnvelopeEvent>;
+  handleRaw(request: CollectorRawHttpRequest): CollectorResponse;
+  getProcessingStats(): CollectorProcessingStats;
+  ingestEvents(events: readonly CollectorEnvelopeEvent[]): Promise<void>;
+  readonly otelSink: OtelEventsSink;
+  readonly transcriptSink: TranscriptIngestionSink;
+}
+
+export interface StandaloneCollectorStartOptions extends EnvelopeCollectorServiceOptions {
+  readonly host?: string;
+  readonly httpPort?: number;
+  readonly otelGrpcAddress?: string;
+  readonly privacyTier?: PrivacyTier;
+}
+
+export interface StandaloneCollectorHandle {
+  readonly httpAddress: string;
+  readonly otelGrpcAddress: string;
+  readonly service: EnvelopeCollectorService;
+  readonly otelReceiver: OtelGrpcReceiverHandle;
+  close(): Promise<void>;
+}

@@ -162,7 +162,6 @@ export async function startOtelGrpcReceiver(options: OtelGrpcReceiverOptions = {
       resolve(port);
     });
   });
-  server.start();
 
   return {
     address: `${host}:${String(boundPort)}`,

@@ -131,3 +131,26 @@ test("transcript ingestion processor skips when transcript path is missing", asy
 
   assert.equal(sink.ingestedBatches.length, 0);
 });
+
+test("transcript ingestion processor ignores transcript-source events to prevent loops", async () => {
+  const transcriptPath = createTempTranscriptFile(
+    `${JSON.stringify({
+      session_id: "sess_transcript_loop_guard",
+      event: "assistant_response",
+      timestamp: "2026-02-23T10:10:01.000Z"
+    })}\n`
+  );
+  const sink = new RecordingTranscriptSink();
+  const processor = createTranscriptIngestionProcessor({
+    sink
+  });
+
+  await processor.processAcceptedEvent(
+    createTranscriptTriggerEvent(transcriptPath, {
+      source: "transcript"
+    })
+  );
+
+  assert.equal(sink.ingestedBatches.length, 0);
+  fs.rmSync(path.dirname(transcriptPath), { recursive: true, force: true });
+});

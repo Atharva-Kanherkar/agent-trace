@@ -6,6 +6,7 @@ import {
   createCollectorService,
   normalizeOtelExport,
   processOtelExportPayload,
+  startStandaloneCollector,
   createTranscriptIngestionProcessor,
   handleCollectorRawHttpRequest,
   handleCollectorRequest,
@@ -281,6 +282,21 @@ async function main(): Promise<void> {
   }
   fs.rmSync(transcriptDir2, { recursive: true, force: true });
 
+  const standaloneCollector = await startStandaloneCollector({
+    host: "127.0.0.1",
+    httpPort: 0,
+    otelGrpcAddress: "127.0.0.1:0",
+    enableTranscriptIngestion: false
+  });
+  try {
+    const standaloneHealth = await fetch(`http://${standaloneCollector.httpAddress}/health`);
+    if (standaloneHealth.status !== 200) {
+      throw new Error("collector smoke failed: standalone collector health check failed");
+    }
+  } finally {
+    await standaloneCollector.close();
+  }
+
   console.log("collector manual smoke passed");
   console.log(`storedEvents=${stats.payload.stats.storedEvents}`);
   console.log(`dedupedEvents=${stats.payload.stats.dedupedEvents}`);
@@ -290,6 +306,7 @@ async function main(): Promise<void> {
   console.log(`otelNormalizedEvents=${otelNormalized.events.length}`);
   console.log(`otelProcessedEvents=${otelProcessed.normalizedEvents}`);
   console.log(`otelSinkBatches=${otelSinkBatches.length}`);
+  console.log("standaloneCollectorHealth=ok");
 }
 
 void main();

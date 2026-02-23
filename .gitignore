@@ -9,3 +9,4 @@ packages/runtime/cli
 packages/runtime/collector
 packages/runtime/platform
 packages/runtime/schema
+packages/collector/schema

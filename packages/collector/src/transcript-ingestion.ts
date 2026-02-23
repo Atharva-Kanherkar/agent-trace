@@ -42,6 +42,10 @@ export function createTranscriptIngestionProcessor(
 ): CollectorAcceptedEventProcessor<EventEnvelope<TranscriptEventPayload>> {
   return {
     processAcceptedEvent: async (event: EventEnvelope<TranscriptEventPayload>): Promise<void> => {
+      if (event.source === "transcript") {
+        return;
+      }
+
       if (!shouldIngestTranscript(event.eventType)) {
         return;
       }

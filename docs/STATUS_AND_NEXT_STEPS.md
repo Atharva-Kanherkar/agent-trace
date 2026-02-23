@@ -14,10 +14,12 @@ Updated: 2026-02-23
    - In-memory deduplication store.
    - Raw HTTP adapter and Node HTTP handler creator.
    - Collector service wrapper for accepted-event processing pipeline + processing health stats.
+   - Envelope collector service composition with default transcript-ingestion wiring.
    - Transcript JSONL parser foundation (`parseTranscriptJsonl`) for Layer 3 ingestion.
    - Session-end transcript ingestion processor (`createTranscriptIngestionProcessor`) with sink integration.
    - OTEL export normalizer foundation (`normalizeOtelExport`) for Layer 1 event extraction.
    - OTEL gRPC receiver module (`startOtelGrpcReceiver`) with export processing stats.
+   - Standalone collector server starter (`startStandaloneCollector`) wiring HTTP + OTEL receiver.
 3. `@agent-trace/api`
    - Typed query handler (`/health`, `/v1/sessions`, `/v1/sessions/:id`, `/timeline`).
    - In-memory session repository.
@@ -110,11 +112,11 @@ Feature set complete after Stage B:
    - OTEL payload normalization logic complete.
    - gRPC receiver transport implementation complete.
    - Runtime startup wiring for `:4717` complete.
-   - Standalone collector process wiring pending.
+   - Standalone collector process wiring complete.
 3. Transcript ingestion parser path.
    - Base parser implementation complete.
    - SessionEnd ingestion processor abstraction complete.
-   - Default collector wiring for transcript ingestion path pending.
+   - Default collector wiring for transcript ingestion path complete.
 
 Feature set complete after Stage C:
 
