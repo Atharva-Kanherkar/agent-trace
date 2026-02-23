@@ -2,13 +2,24 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { FileCliConfigStore, runHookHandler, runInit, runStatus } from "../src";
+import { FileCliConfigStore, runHookHandler, runHookHandlerAndForward, runInit, runStatus } from "../src";
+import type { CollectorHttpClient, CollectorHttpPostResult } from "../src/types";
 
 function createTempConfigDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "agent-trace-cli-smoke-"));
 }
 
-function main(): void {
+class SmokeCollectorClient implements CollectorHttpClient {
+  public async postJson(_url: string, _payload: unknown): Promise<CollectorHttpPostResult> {
+    return {
+      ok: true,
+      statusCode: 202,
+      body: "{\"status\":\"accepted\"}"
+    };
+  }
+}
+
+async function main(): Promise<void> {
   const configDir = createTempConfigDir();
   const store = new FileCliConfigStore();
 
@@ -38,6 +49,21 @@ function main(): void {
     },
     store
   );
+  const forward = await runHookHandlerAndForward(
+    {
+      configDir,
+      nowIso: "2026-02-23T13:00:02.000Z",
+      rawStdin: JSON.stringify({
+        hook: "SessionStart",
+        event: "session_start",
+        session_id: "sess_manual_001",
+        prompt_id: "prompt_manual_001",
+        timestamp: "2026-02-23T13:00:02.000Z"
+      })
+    },
+    new SmokeCollectorClient(),
+    store
+  );
 
   if (!init.ok) {
     throw new Error("cli smoke failed: init did not succeed");
@@ -48,6 +74,9 @@ function main(): void {
   if (!hook.ok) {
     throw new Error(`cli smoke failed: hook handler errors: ${hook.errors.join(" | ")}`);
   }
+  if (!forward.ok) {
+    throw new Error(`cli smoke failed: forward errors: ${forward.errors.join(" | ")}`);
+  }
 
   console.log("cli manual smoke passed");
   console.log(`configPath=${init.configPath}`);
@@ -57,5 +86,4 @@ function main(): void {
   fs.rmSync(configDir, { recursive: true, force: true });
 }
 
-main();
-
+void main();

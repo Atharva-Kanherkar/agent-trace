@@ -21,9 +21,14 @@ export function parseArgs(argv: readonly string[]): CliParsedArgs {
   let configDir: string | undefined;
   let collectorUrl: string | undefined;
   let privacyTier: PrivacyTier | undefined;
+  let forward = false;
 
   for (let i = 3; i < argv.length; i += 1) {
     const token = argv[i];
+    if (token === "--forward") {
+      forward = true;
+      continue;
+    }
     if (token === "--config-dir") {
       const value = argv[i + 1];
       if (typeof value === "string" && value.length > 0) {
@@ -52,7 +57,7 @@ export function parseArgs(argv: readonly string[]): CliParsedArgs {
     command,
     ...(configDir !== undefined ? { configDir } : {}),
     ...(collectorUrl !== undefined ? { collectorUrl } : {}),
-    ...(privacyTier !== undefined ? { privacyTier } : {})
+    ...(privacyTier !== undefined ? { privacyTier } : {}),
+    ...(forward ? { forward: true } : {})
   };
 }
-

@@ -1,4 +1,4 @@
-import { handleCollectorRequest, InMemoryCollectorStore } from "../src";
+import { handleCollectorRawHttpRequest, handleCollectorRequest, InMemoryCollectorStore } from "../src";
 import { createSampleCollectorEvent, type SampleCollectorEvent } from "../src/samples";
 import type { CollectorHandlerDependencies, CollectorValidationResult } from "../src/types";
 
@@ -82,8 +82,20 @@ function main(): void {
     },
     dependencies
   );
+  const rawStats = handleCollectorRawHttpRequest(
+    {
+      method: "GET",
+      url: "/v1/hooks/stats"
+    },
+    dependencies
+  );
 
-  if (first.statusCode !== 202 || duplicate.statusCode !== 202 || stats.statusCode !== 200) {
+  if (
+    first.statusCode !== 202 ||
+    duplicate.statusCode !== 202 ||
+    stats.statusCode !== 200 ||
+    rawStats.statusCode !== 200
+  ) {
     throw new Error("collector smoke failed: unexpected response status");
   }
   if (first.payload.status !== "accepted" || duplicate.payload.status !== "accepted") {

@@ -16,4 +16,25 @@ Current implementation strategy:
 ## Source of truth
 
 - `docs/HLD_LLD.md`
+- `docs/STATUS_AND_NEXT_STEPS.md`
 
+## Current feature set
+
+Implemented modules:
+
+1. `@agent-trace/schema`
+2. `@agent-trace/collector`
+3. `@agent-trace/api`
+4. `@agent-trace/cli`
+5. `@agent-trace/dashboard` (core mappers/analytics)
+6. `@agent-trace/platform` (migrations + validation)
+
+## Validation
+
+Run all quality gates:
+
+```bash
+npm run typecheck
+npm run test:unit
+npm run test:manual
+```

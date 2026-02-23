@@ -1,4 +1,4 @@
-import { handleApiRequest, InMemorySessionRepository } from "../src";
+import { handleApiRawHttpRequest, handleApiRequest, InMemorySessionRepository } from "../src";
 import { createSampleTrace } from "../src/samples";
 import type { ApiHandlerDependencies } from "../src/types";
 
@@ -56,8 +56,20 @@ function main(): void {
     },
     dependencies
   );
+  const rawHealth = handleApiRawHttpRequest(
+    {
+      method: "GET",
+      url: "/health"
+    },
+    dependencies
+  );
 
-  if (health.statusCode !== 200 || health.payload.status !== "ok") {
+  if (
+    health.statusCode !== 200 ||
+    health.payload.status !== "ok" ||
+    rawHealth.statusCode !== 200 ||
+    rawHealth.payload.status !== "ok"
+  ) {
     throw new Error("api smoke failed: health check failed");
   }
 
@@ -83,4 +95,3 @@ function main(): void {
 }
 
 main();
-

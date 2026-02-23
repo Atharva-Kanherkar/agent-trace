@@ -4,7 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { FileCliConfigStore, parseArgs, runHookHandler, runInit, runStatus } from "../src";
+import { FileCliConfigStore, parseArgs, runHookHandler, runHookHandlerAndForward, runInit, runStatus } from "../src";
+import type { CollectorHttpClient, CollectorHttpPostResult } from "../src/types";
 
 function createTempConfigDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "agent-trace-cli-test-"));
@@ -20,13 +21,15 @@ test("parseArgs parses supported command options", () => {
     "--collector-url",
     "http://127.0.0.1:8317/v1/hooks",
     "--privacy-tier",
-    "2"
+    "2",
+    "--forward"
   ]);
 
   assert.equal(parsed.command, "init");
   assert.equal(parsed.configDir, "/tmp/config-dir");
   assert.equal(parsed.collectorUrl, "http://127.0.0.1:8317/v1/hooks");
   assert.equal(parsed.privacyTier, 2);
+  assert.equal(parsed.forward, true);
 });
 
 test("runInit writes config and runStatus reports configured state", () => {
@@ -124,3 +127,74 @@ test("runHookHandler rejects invalid JSON and empty payload", () => {
   assert.equal(emptyPayload.ok, false);
 });
 
+class MockCollectorClient implements CollectorHttpClient {
+  public constructor(private readonly response: CollectorHttpPostResult) {}
+
+  public async postJson(_url: string, _payload: unknown): Promise<CollectorHttpPostResult> {
+    return this.response;
+  }
+}
+
+test("runHookHandlerAndForward sends envelope to collector client", async () => {
+  const configDir = createTempConfigDir();
+  const store = new FileCliConfigStore();
+  runInit(
+    {
+      configDir,
+      collectorUrl: "http://collector.local/v1/hooks",
+      privacyTier: 1,
+      nowIso: "2026-02-23T12:00:00.000Z"
+    },
+    store
+  );
+
+  const result = await runHookHandlerAndForward(
+    {
+      rawStdin: JSON.stringify({
+        event: "tool_result",
+        session_id: "sess_123",
+        prompt_id: "prompt_123",
+        timestamp: "2026-02-23T12:00:01.000Z"
+      }),
+      configDir,
+      nowIso: "2026-02-23T12:00:02.000Z"
+    },
+    new MockCollectorClient({
+      ok: true,
+      statusCode: 202,
+      body: "{\"status\":\"accepted\"}"
+    }),
+    store
+  );
+
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.collectorUrl, "http://collector.local/v1/hooks");
+    assert.equal(result.statusCode, 202);
+  }
+
+  fs.rmSync(configDir, { recursive: true, force: true });
+});
+
+test("runHookHandlerAndForward surfaces collector transport errors", async () => {
+  const result = await runHookHandlerAndForward(
+    {
+      rawStdin: JSON.stringify({
+        event: "tool_result",
+        session_id: "sess_123"
+      }),
+      nowIso: "2026-02-23T12:00:02.000Z"
+    },
+    new MockCollectorClient({
+      ok: false,
+      statusCode: 0,
+      body: "",
+      error: "connection refused"
+    })
+  );
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.ok(result.errors.some((error) => error.includes("connection refused")));
+  }
+});

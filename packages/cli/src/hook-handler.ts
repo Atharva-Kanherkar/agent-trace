@@ -3,7 +3,11 @@ import crypto from "node:crypto";
 import type { EventEnvelope } from "../../schema/src/types";
 import { FileCliConfigStore } from "./config-store";
 import type {
+  CollectorHttpClient,
+  CollectorHttpPostResult,
   CliConfigStore,
+  HookForwardInput,
+  HookForwardResult,
   HookHandlerInput,
   HookHandlerResult,
   HookPayload,
@@ -105,6 +109,19 @@ function getPrivacyTier(store: CliConfigStore, configDir?: string): PrivacyTier 
   return config.privacyTier;
 }
 
+function getCollectorUrl(store: CliConfigStore, configDir?: string, collectorUrlOverride?: string): string {
+  if (collectorUrlOverride !== undefined && collectorUrlOverride.length > 0) {
+    return collectorUrlOverride;
+  }
+
+  const config = store.readConfig(configDir);
+  if (config !== undefined) {
+    return config.collectorUrl;
+  }
+
+  return "http://127.0.0.1:8317/v1/hooks";
+}
+
 function toEnvelope(
   payload: HookPayload,
   privacyTier: PrivacyTier,
@@ -199,5 +216,89 @@ export function runHookHandler(
   return {
     ok: true,
     envelope
+  };
+}
+
+export class FetchCollectorHttpClient implements CollectorHttpClient {
+  public async postJson(url: string, payload: unknown): Promise<CollectorHttpPostResult> {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const body = await response.text();
+      return {
+        ok: true,
+        statusCode: response.status,
+        body
+      };
+    } catch (error: unknown) {
+      return {
+        ok: false,
+        statusCode: 0,
+        body: "",
+        error: String(error)
+      };
+    }
+  }
+}
+
+function isSuccessStatus(statusCode: number): boolean {
+  return statusCode >= 200 && statusCode < 300;
+}
+
+export async function runHookHandlerAndForward(
+  input: HookForwardInput,
+  client: CollectorHttpClient = new FetchCollectorHttpClient(),
+  store: CliConfigStore = new FileCliConfigStore()
+): Promise<HookForwardResult> {
+  const hookResult = runHookHandler(
+    {
+      rawStdin: input.rawStdin,
+      ...(input.configDir !== undefined ? { configDir: input.configDir } : {}),
+      ...(input.nowIso !== undefined ? { nowIso: input.nowIso } : {})
+    },
+    store
+  );
+
+  if (!hookResult.ok) {
+    return {
+      ok: false,
+      errors: hookResult.errors
+    };
+  }
+
+  const collectorUrl = getCollectorUrl(store, input.configDir, input.collectorUrl);
+  const postResult = await client.postJson(collectorUrl, hookResult.envelope);
+  if (!postResult.ok) {
+    return {
+      ok: false,
+      envelope: hookResult.envelope,
+      errors: [postResult.error ?? "failed to send hook event to collector"]
+    };
+  }
+
+  if (!isSuccessStatus(postResult.statusCode)) {
+    return {
+      ok: false,
+      envelope: hookResult.envelope,
+      statusCode: postResult.statusCode,
+      errors: [
+        `collector returned status ${String(postResult.statusCode)}`,
+        ...(postResult.body.length > 0 ? [postResult.body] : [])
+      ]
+    };
+  }
+
+  return {
+    ok: true,
+    envelope: hookResult.envelope,
+    collectorUrl,
+    statusCode: postResult.statusCode,
+    body: postResult.body
   };
 }

@@ -7,6 +7,11 @@ export interface ApiRequest {
   readonly url: string;
 }
 
+export interface ApiRawHttpRequest {
+  readonly method: string;
+  readonly url: string;
+}
+
 export interface ApiSessionSummary {
   readonly sessionId: string;
   readonly userId: string;
@@ -73,4 +78,3 @@ export interface ApiHandlerDependencies {
   readonly startedAtMs: number;
   readonly repository: ApiSessionRepository;
 }
-

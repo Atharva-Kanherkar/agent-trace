@@ -9,6 +9,7 @@ export interface CliParsedArgs {
   readonly configDir?: string;
   readonly collectorUrl?: string;
   readonly privacyTier?: PrivacyTier;
+  readonly forward?: boolean;
 }
 
 export interface AgentTraceCliConfig {
@@ -83,3 +84,35 @@ export interface HookHandlerFailure {
 }
 
 export type HookHandlerResult = HookHandlerSuccess | HookHandlerFailure;
+
+export interface CollectorHttpPostResult {
+  readonly ok: boolean;
+  readonly statusCode: number;
+  readonly body: string;
+  readonly error?: string;
+}
+
+export interface CollectorHttpClient {
+  postJson(url: string, payload: unknown): Promise<CollectorHttpPostResult>;
+}
+
+export interface HookForwardInput extends HookHandlerInput {
+  readonly collectorUrl?: string;
+}
+
+export interface HookForwardSuccess {
+  readonly ok: true;
+  readonly envelope: EventEnvelope<HookPayload>;
+  readonly collectorUrl: string;
+  readonly statusCode: number;
+  readonly body: string;
+}
+
+export interface HookForwardFailure {
+  readonly ok: false;
+  readonly errors: readonly string[];
+  readonly envelope?: EventEnvelope<HookPayload>;
+  readonly statusCode?: number;
+}
+
+export type HookForwardResult = HookForwardSuccess | HookForwardFailure;

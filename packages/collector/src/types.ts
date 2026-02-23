@@ -40,6 +40,12 @@ export interface CollectorRequest {
   readonly body?: unknown;
 }
 
+export interface CollectorRawHttpRequest {
+  readonly method: string;
+  readonly url: string;
+  readonly rawBody?: string;
+}
+
 export interface CollectorResponse {
   readonly statusCode: number;
   readonly payload: CollectorPayload;
@@ -78,4 +84,3 @@ export interface CollectorHandlerDependencies<TEvent> {
   readonly getEventId: (event: TEvent) => string;
   readonly store: CollectorEventStore<TEvent>;
 }
-
