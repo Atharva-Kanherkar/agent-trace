@@ -104,7 +104,7 @@ Feature set complete after Stage A:
    - Events writer for `agent_events` complete.
    - Session aggregate writer foundation for `session_traces` complete.
    - Runtime wiring for `session_traces` persistence complete.
-   - Materialized-flow orchestration pending.
+   - Materialized-flow orchestration complete (`daily_user_metrics`, `tool_usage_daily`, `model_cost_daily`).
 2. PostgreSQL writer implementation (sessions, commits, settings).
    - Core typed writer implementation complete.
    - In-memory collector wiring complete.
