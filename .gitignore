@@ -1,14 +1,7 @@
 node_modules/
-.pnpm-store/
-.next/
 dist/
-build/
 coverage/
-*.log
-.env
-.env.*
-!.env.example
-docker/data/
-tmp/
 .DS_Store
+*.log
+*.tsbuildinfo
 

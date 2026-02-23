@@ -1,0 +1,17 @@
+{
+  "name": "@agent-trace/collector",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Strict collector core for ingesting and deduplicating agent-trace events.",
+  "license": "Apache-2.0",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && node ../../scripts/run-tsc.cjs -p tsconfig.json",
+    "typecheck": "node ../../scripts/run-tsc.cjs -p tsconfig.json --noEmit",
+    "test:unit": "npm run build && node --test dist/test/*.test.js",
+    "test:manual": "npm run build && node dist/scripts/manual-smoke.js"
+  }
+}
+
