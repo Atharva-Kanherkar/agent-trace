@@ -133,3 +133,25 @@ export interface TranscriptIngestionProcessorOptions {
   readonly sink: TranscriptIngestionSink;
   readonly onParseErrors?: (errors: readonly string[]) => void;
 }
+
+export interface OtelNormalizeInput {
+  readonly payload: unknown;
+  readonly privacyTier: PrivacyTier;
+  readonly ingestedAt?: string;
+}
+
+export interface OtelNormalizeSuccess {
+  readonly ok: true;
+  readonly events: readonly EventEnvelope<TranscriptEventPayload>[];
+  readonly droppedRecords: number;
+  readonly errors: readonly [];
+}
+
+export interface OtelNormalizeFailure {
+  readonly ok: false;
+  readonly events: readonly EventEnvelope<TranscriptEventPayload>[];
+  readonly droppedRecords: number;
+  readonly errors: readonly string[];
+}
+
+export type OtelNormalizeResult = OtelNormalizeSuccess | OtelNormalizeFailure;

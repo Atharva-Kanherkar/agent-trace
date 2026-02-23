@@ -4,6 +4,7 @@ import path from "node:path";
 
 import {
   createCollectorService,
+  normalizeOtelExport,
   createTranscriptIngestionProcessor,
   handleCollectorRawHttpRequest,
   handleCollectorRequest,
@@ -168,6 +169,38 @@ async function main(): Promise<void> {
     throw new Error("collector smoke failed: transcript parser did not produce expected event");
   }
 
+  const otelNormalized = normalizeOtelExport({
+    privacyTier: 1,
+    ingestedAt: "2026-02-23T10:01:00.000Z",
+    payload: {
+      resourceLogs: [
+        {
+          scopeLogs: [
+            {
+              logRecords: [
+                {
+                  attributes: [
+                    {
+                      key: "session_id",
+                      value: { stringValue: "sess_manual_001" }
+                    },
+                    {
+                      key: "event_type",
+                      value: { stringValue: "tool_result" }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  });
+  if (!otelNormalized.ok || otelNormalized.events.length !== 1) {
+    throw new Error("collector smoke failed: otel normalizer did not produce expected event");
+  }
+
   const transcriptIngestionBatches: Array<readonly EventEnvelope<TranscriptEventPayload>[]> = [];
   const transcriptSink: TranscriptIngestionSink = {
     ingestTranscriptEvents: async (events: readonly EventEnvelope<TranscriptEventPayload>[]): Promise<void> => {
@@ -213,6 +246,7 @@ async function main(): Promise<void> {
   console.log(`serviceAcceptedEvents=${service.getProcessingStats().acceptedEvents}`);
   console.log(`transcriptParsedEvents=${transcriptParse.parsedEvents.length}`);
   console.log(`transcriptIngestionBatches=${transcriptIngestionBatches.length}`);
+  console.log(`otelNormalizedEvents=${otelNormalized.events.length}`);
 }
 
 void main();
