@@ -37,6 +37,7 @@ Updated: 2026-02-23
    - Cost and project summary analytics functions.
 6. `@agent-trace/platform`
    - Migration manifest and migration-file validator.
+   - Typed migration runner (`runPlatformMigrations`) for ClickHouse + PostgreSQL SQL files.
    - Baseline ClickHouse and PostgreSQL SQL migrations.
    - Strict ClickHouse `agent_events` row mapper and writer abstraction.
    - Strict ClickHouse `session_traces` row mapper and writer abstraction.
@@ -59,6 +60,7 @@ Updated: 2026-02-23
    - Runtime CLI supports env-driven startup mode:
      - in-memory mode by default
      - DB-backed mode when ClickHouse/PostgreSQL env config is provided
+   - Runtime DB-backed startup runs platform migrations before serving traffic.
 
 ## Quality gates
 
@@ -109,6 +111,9 @@ Feature set complete after Stage A:
    - Collector service wiring abstraction complete.
    - Standalone collector + standalone API process binaries complete.
    - Production deployment composition with ClickHouse/PostgreSQL service graph pending.
+4. Auto-migrations:
+   - Platform migration runner complete.
+   - Runtime DB mode auto-migration on startup complete.
 
 Feature set complete after Stage B:
 

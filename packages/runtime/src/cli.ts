@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createDatabaseBackedRuntime } from "./database-runtime";
 import { parseRuntimeDatabaseConfigFromEnv } from "./env";
+import { runRuntimeDatabaseMigrations } from "./migrations";
 import { createInMemoryRuntime, startInMemoryRuntimeServers, type InMemoryRuntime } from "./runtime";
 import type { RuntimeStartedServers } from "./types";
 
@@ -24,25 +25,40 @@ async function main(): Promise<void> {
   const startedAtMs = Date.now();
 
   const dbConfig = parseRuntimeDatabaseConfigFromEnv(process.env as Record<string, string | undefined>);
-  const runtimeHandle:
+  let migrationSummary:
+    | {
+        readonly clickHouseStatements: number;
+        readonly postgresStatements: number;
+      }
+    | undefined;
+  let runtimeHandle:
     | { readonly mode: "in-memory"; readonly runtime: InMemoryRuntime; close(): Promise<void> }
-    | { readonly mode: "db-backed"; readonly runtime: InMemoryRuntime; close(): Promise<void> } =
-    dbConfig === undefined
-      ? {
-          mode: "in-memory",
-          runtime: createInMemoryRuntime({
-            startedAtMs
-          }),
-          close: async (): Promise<void> => Promise.resolve()
-        }
-      : {
-          mode: "db-backed",
-          ...createDatabaseBackedRuntime({
-            startedAtMs,
-            clickHouse: dbConfig.clickHouse,
-            postgres: dbConfig.postgres
-          })
-        };
+    | { readonly mode: "db-backed"; readonly runtime: InMemoryRuntime; close(): Promise<void> };
+
+  if (dbConfig === undefined) {
+    runtimeHandle = {
+      mode: "in-memory",
+      runtime: createInMemoryRuntime({
+        startedAtMs
+      }),
+      close: async (): Promise<void> => Promise.resolve()
+    };
+  } else {
+    const migrationResult = await runRuntimeDatabaseMigrations(dbConfig);
+    migrationSummary = {
+      clickHouseStatements: migrationResult.clickHouse.executedStatements,
+      postgresStatements: migrationResult.postgres.executedStatements
+    };
+
+    runtimeHandle = {
+      mode: "db-backed",
+      ...createDatabaseBackedRuntime({
+        startedAtMs,
+        clickHouse: dbConfig.clickHouse,
+        postgres: dbConfig.postgres
+      })
+    };
+  }
 
   let servers: RuntimeStartedServers;
   try {
@@ -58,6 +74,10 @@ async function main(): Promise<void> {
 
   process.stdout.write(`runtime started\n`);
   process.stdout.write(`mode=${runtimeHandle.mode}\n`);
+  if (migrationSummary !== undefined) {
+    process.stdout.write(`migrations.clickhouse.statements=${String(migrationSummary.clickHouseStatements)}\n`);
+    process.stdout.write(`migrations.postgres.statements=${String(migrationSummary.postgresStatements)}\n`);
+  }
   process.stdout.write(`collector=${servers.collectorAddress}\n`);
   process.stdout.write(`api=${servers.apiAddress}\n`);
 

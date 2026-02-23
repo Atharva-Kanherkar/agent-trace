@@ -4,6 +4,7 @@ import {
   PostgresSessionWriter,
   PostgresSettingsWriter,
   getMigrationManifest,
+  runDatabaseMigrations,
   validateMigrationManifest
 } from "../src";
 import type {
@@ -21,6 +22,7 @@ import type {
   PostgresSessionRow,
   PostgresSettingsPersistenceClient
 } from "../src/persistence-types";
+import type { MigrationFileReader, SqlMigrationExecutor } from "../src/types";
 
 class SmokeInsertClient implements ClickHouseInsertClient<ClickHouseAgentEventRow> {
   public lastRequest?: ClickHouseInsertRequest<ClickHouseAgentEventRow>;
@@ -56,6 +58,25 @@ class SmokePostgresSettingsClient implements PostgresSettingsPersistenceClient {
 
   public async upsertInstanceSettings(rows: readonly PostgresInstanceSettingRow[]): Promise<void> {
     this.settingsRows = rows;
+  }
+}
+
+class SmokeSqlMigrationExecutor implements SqlMigrationExecutor {
+  public readonly statements: string[] = [];
+  public closeCalled = false;
+
+  public async execute(statement: string): Promise<void> {
+    this.statements.push(statement);
+  }
+
+  public async close(): Promise<void> {
+    this.closeCalled = true;
+  }
+}
+
+class SmokeMigrationFileReader implements MigrationFileReader {
+  public read(filePath: string): string {
+    return `-- ${filePath}\nCREATE TABLE IF NOT EXISTS smoke_table (id UInt8);`;
   }
 }
 
@@ -168,6 +189,23 @@ async function main(): Promise<void> {
     throw new Error("platform postgres settings writer smoke failed: expected one setting");
   }
 
+  const migrationExecutor = new SmokeSqlMigrationExecutor();
+  const migrationSummary = await runDatabaseMigrations({
+    database: "clickhouse",
+    entries: [
+      {
+        database: "clickhouse",
+        version: "001",
+        filePath: "/tmp/fake.sql"
+      }
+    ],
+    executor: migrationExecutor,
+    fileReader: new SmokeMigrationFileReader()
+  });
+  if (migrationSummary.executedStatements !== 1 || !migrationExecutor.closeCalled) {
+    throw new Error("platform migration runner smoke failed: expected one executed statement and closed executor");
+  }
+
   console.log("platform manual smoke passed");
   console.log(`checkedFiles=${result.checkedFiles}`);
   console.log(`writerRows=${writeSummary.writtenRows}`);
@@ -175,6 +213,7 @@ async function main(): Promise<void> {
   console.log(`pgSessionRows=${sessionWriteSummary.writtenSessions}`);
   console.log(`pgCommitRows=${sessionWriteSummary.writtenCommits}`);
   console.log(`pgSettingsRows=${settingsSummary.writtenSettings}`);
+  console.log(`migrationStatements=${migrationSummary.executedStatements}`);
 }
 
 void main();

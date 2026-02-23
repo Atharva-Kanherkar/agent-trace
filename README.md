@@ -47,6 +47,8 @@ Current compose stack (runtime + storage):
 2. PostgreSQL (`5432`)
 3. Runtime process (`collector` on `8317`, `api` on `8318`, OTEL gRPC on `4717`)
 
+In DB-backed mode, runtime applies ClickHouse and PostgreSQL migrations on startup before exposing endpoints.
+
 Run:
 
 ```bash
