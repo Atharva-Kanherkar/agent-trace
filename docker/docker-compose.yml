@@ -42,6 +42,7 @@ services:
       dockerfile: docker/runtime.Dockerfile
     container_name: agent-trace-collector
     environment:
+      RUNTIME_SERVICE_ROLE: "collector"
       RUNTIME_HOST: "0.0.0.0"
       COLLECTOR_PORT: "8317"
       API_PORT: "8318"
@@ -67,6 +68,7 @@ services:
       dockerfile: docker/runtime.Dockerfile
     container_name: agent-trace-api
     environment:
+      RUNTIME_SERVICE_ROLE: "api"
       RUNTIME_HOST: "0.0.0.0"
       COLLECTOR_PORT: "8317"
       API_PORT: "8318"

@@ -64,6 +64,7 @@ Updated: 2026-02-23
    - Runtime CLI supports env-driven startup mode:
      - in-memory mode by default
      - DB-backed mode when ClickHouse/PostgreSQL env config is provided
+     - role mode (`all`, `collector`, `api`) for dedicated process startup
    - Runtime DB-backed startup runs platform migrations before serving traffic.
 
 ## Quality gates
@@ -158,7 +159,7 @@ Feature set complete after Stage C:
 2. Docker Compose service graph:
    - runtime + dashboard + ClickHouse + PostgreSQL compose foundation complete.
    - split collector/api/dashboard compose topology complete (runtime-backed services).
-   - dedicated per-service process binaries in compose topology pending.
+   - dedicated per-service runtime role startup in compose topology complete.
 3. Operational docs and startup scripts.
 
 Feature set complete after Stage D:

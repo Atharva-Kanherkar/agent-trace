@@ -156,32 +156,66 @@ export async function startInMemoryRuntimeServers(
   const host = options.host ?? "127.0.0.1";
   const collectorPort = options.collectorPort ?? 8317;
   const apiPort = options.apiPort ?? 8318;
+  const enableCollectorServer = options.enableCollectorServer ?? true;
+  const enableApiServer = options.enableApiServer ?? true;
+  const enableOtelReceiver = options.enableOtelReceiver ?? enableCollectorServer;
+
+  if (!enableCollectorServer && !enableApiServer) {
+    throw new Error("runtime requires at least one enabled HTTP service");
+  }
+
   const otelGrpcAddress = options.otelGrpcAddress ?? `${host}:4717`;
-
-  const collectorServer = http.createServer(createCollectorHttpHandler(runtime.collectorDependencies));
-  const apiServer = http.createServer(
-    createApiHttpHandler({
-      startedAtMs: runtime.collectorDependencies.startedAtMs,
-      repository: runtime.sessionRepository
-    })
-  );
+  const collectorServer = enableCollectorServer
+    ? http.createServer(createCollectorHttpHandler(runtime.collectorDependencies))
+    : undefined;
+  const apiServer = enableApiServer
+    ? http.createServer(
+        createApiHttpHandler({
+          startedAtMs: runtime.collectorDependencies.startedAtMs,
+          repository: runtime.sessionRepository
+        })
+      )
+    : undefined;
   let otelReceiver: OtelGrpcReceiverHandle | undefined;
-  otelReceiver = await startOtelGrpcReceiver({
-    address: otelGrpcAddress,
-    privacyTier: 1,
-    sink: createRuntimeOtelSink(runtime)
-  });
+  try {
+    if (enableOtelReceiver) {
+      otelReceiver = await startOtelGrpcReceiver({
+        address: otelGrpcAddress,
+        privacyTier: 1,
+        sink: createRuntimeOtelSink(runtime)
+      });
+    }
 
-  await listen(collectorServer, collectorPort, host);
-  await listen(apiServer, apiPort, host);
+    if (collectorServer !== undefined) {
+      await listen(collectorServer, collectorPort, host);
+    }
+    if (apiServer !== undefined) {
+      await listen(apiServer, apiPort, host);
+    }
+  } catch (error: unknown) {
+    if (apiServer !== undefined) {
+      await close(apiServer).catch(() => undefined);
+    }
+    if (collectorServer !== undefined) {
+      await close(collectorServer).catch(() => undefined);
+    }
+    if (otelReceiver !== undefined) {
+      await otelReceiver.close().catch(() => undefined);
+    }
+    throw error;
+  }
 
   return {
-    collectorAddress: toAddress(collectorServer),
-    apiAddress: toAddress(apiServer),
-    otelGrpcAddress: otelReceiver.address,
+    ...(collectorServer !== undefined ? { collectorAddress: toAddress(collectorServer) } : {}),
+    ...(apiServer !== undefined ? { apiAddress: toAddress(apiServer) } : {}),
+    ...(otelReceiver !== undefined ? { otelGrpcAddress: otelReceiver.address } : {}),
     close: async (): Promise<void> => {
-      await close(collectorServer);
-      await close(apiServer);
+      if (collectorServer !== undefined) {
+        await close(collectorServer);
+      }
+      if (apiServer !== undefined) {
+        await close(apiServer);
+      }
       if (otelReceiver !== undefined) {
         await otelReceiver.close();
       }

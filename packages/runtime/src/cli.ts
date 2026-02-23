@@ -18,10 +18,24 @@ function readNumberEnv(name: string, fallback: number): number {
   return parsed;
 }
 
+type RuntimeServiceRole = "all" | "collector" | "api";
+
+function readServiceRoleEnv(name: string): RuntimeServiceRole {
+  const raw = process.env[name];
+  if (raw === "collector" || raw === "api") {
+    return raw;
+  }
+  return "all";
+}
+
 async function main(): Promise<void> {
   const host = process.env["RUNTIME_HOST"] ?? "127.0.0.1";
   const collectorPort = readNumberEnv("COLLECTOR_PORT", 8317);
   const apiPort = readNumberEnv("API_PORT", 8318);
+  const serviceRole = readServiceRoleEnv("RUNTIME_SERVICE_ROLE");
+  const enableCollectorServer = serviceRole !== "api";
+  const enableApiServer = serviceRole !== "collector";
+  const enableOtelReceiver = serviceRole !== "api";
   const startedAtMs = Date.now();
 
   const dbConfig = parseRuntimeDatabaseConfigFromEnv(process.env as Record<string, string | undefined>);
@@ -69,7 +83,10 @@ async function main(): Promise<void> {
     servers = await startInMemoryRuntimeServers(runtimeHandle.runtime, {
       host,
       collectorPort,
-      apiPort
+      apiPort,
+      enableCollectorServer,
+      enableApiServer,
+      enableOtelReceiver
     });
   } catch (error: unknown) {
     await runtimeHandle.close();
@@ -78,6 +95,7 @@ async function main(): Promise<void> {
 
   process.stdout.write(`runtime started\n`);
   process.stdout.write(`mode=${runtimeHandle.mode}\n`);
+  process.stdout.write(`role=${serviceRole}\n`);
   if (migrationSummary !== undefined) {
     process.stdout.write(`migrations.clickhouse.statements=${String(migrationSummary.clickHouseStatements)}\n`);
     process.stdout.write(`migrations.postgres.statements=${String(migrationSummary.postgresStatements)}\n`);
@@ -85,8 +103,15 @@ async function main(): Promise<void> {
   if (hydratedSessionTraces !== undefined) {
     process.stdout.write(`hydrated.session_traces=${String(hydratedSessionTraces)}\n`);
   }
-  process.stdout.write(`collector=${servers.collectorAddress}\n`);
-  process.stdout.write(`api=${servers.apiAddress}\n`);
+  if (servers.collectorAddress !== undefined) {
+    process.stdout.write(`collector=${servers.collectorAddress}\n`);
+  }
+  if (servers.apiAddress !== undefined) {
+    process.stdout.write(`api=${servers.apiAddress}\n`);
+  }
+  if (servers.otelGrpcAddress !== undefined) {
+    process.stdout.write(`otelGrpc=${servers.otelGrpcAddress}\n`);
+  }
 
   const shutdown = async (): Promise<void> => {
     await servers.close();

@@ -49,7 +49,7 @@ Current compose stack (split services + storage):
 4. API service (`8318`)
 5. Dashboard web server (`3100`)
 
-Collector/API services are currently runtime-backed. In DB-backed mode they apply ClickHouse and PostgreSQL migrations on startup before exposing endpoints.
+Collector/API services are runtime-backed with role mode (`RUNTIME_SERVICE_ROLE=collector|api`). In DB-backed mode they apply ClickHouse and PostgreSQL migrations on startup before exposing endpoints.
 
 Run:
 

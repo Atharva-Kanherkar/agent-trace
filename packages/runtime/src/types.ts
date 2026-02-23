@@ -27,11 +27,14 @@ export interface RuntimeStartOptions {
   readonly collectorPort?: number;
   readonly apiPort?: number;
   readonly otelGrpcAddress?: string;
+  readonly enableCollectorServer?: boolean;
+  readonly enableApiServer?: boolean;
+  readonly enableOtelReceiver?: boolean;
 }
 
 export interface RuntimeStartedServers {
-  readonly collectorAddress: string;
-  readonly apiAddress: string;
+  readonly collectorAddress?: string;
+  readonly apiAddress?: string;
   readonly otelGrpcAddress?: string;
   close(): Promise<void>;
 }
