@@ -43,7 +43,9 @@ function main(): void {
   console.log("runtime manual smoke passed");
   console.log(`sessionId=${detail.payload.session.sessionId}`);
   console.log(`timelineEvents=${detail.payload.session.timeline.length}`);
+  const snapshot = runtime.persistence.getSnapshot();
+  console.log(`persistedEventRows=${snapshot.clickHouseRows.length}`);
+  console.log(`persistedSessionRows=${snapshot.postgresSessionRows.length}`);
 }
 
 main();
-

@@ -8,6 +8,7 @@ const links = [
   { name: "api", target: "../api/dist" },
   { name: "cli", target: "../cli/dist" },
   { name: "collector", target: "../collector/dist" },
+  { name: "platform", target: "../platform/dist" },
   { name: "schema", target: "../schema/dist" }
 ];
 

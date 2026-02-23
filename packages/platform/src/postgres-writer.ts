@@ -103,8 +103,9 @@ export class PostgresSessionWriter {
     const sessions = dedupeBySessionId(traces.map(toPostgresSessionRow));
     const commitRows = dedupeBySha(traces.flatMap((trace) => toPostgresCommitRows(trace)));
 
-    await this.client.upsertSessions(sessions);
-    await this.client.upsertCommits(commitRows);
+    const sessionsPromise = this.client.upsertSessions(sessions);
+    const commitsPromise = this.client.upsertCommits(commitRows);
+    await Promise.all([sessionsPromise, commitsPromise]);
 
     return {
       writtenSessions: sessions.length,

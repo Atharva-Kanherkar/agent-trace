@@ -160,3 +160,35 @@ test("returns 404 for unknown route", () => {
     assert.equal(response.payload.message, "not found");
   }
 });
+
+test("swallows async onAcceptedEvent failures and still accepts ingest", async () => {
+  const store = new InMemoryCollectorStore<SampleCollectorEvent>();
+  const dependencies: CollectorHandlerDependencies<SampleCollectorEvent> = {
+    ...createDependencies(store),
+    onAcceptedEvent: async (): Promise<void> => {
+      throw new Error("persistence failed");
+    }
+  };
+
+  const response = handleCollectorRequest(
+    {
+      method: "POST",
+      url: "/v1/hooks",
+      body: createSampleCollectorEvent({
+        eventId: "evt_async_failure"
+      })
+    },
+    dependencies
+  );
+
+  assert.equal(response.statusCode, 202);
+  assert.equal(response.payload.status, "accepted");
+  if (response.payload.status === "accepted") {
+    assert.equal(response.payload.accepted, true);
+    assert.equal(response.payload.deduped, false);
+  }
+
+  await new Promise<void>((resolve) => {
+    setImmediate(() => resolve());
+  });
+});

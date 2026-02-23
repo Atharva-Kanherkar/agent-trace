@@ -6,6 +6,7 @@ import { handleCollectorRawHttpRequest, InMemoryCollectorStore } from "../../col
 import { createCollectorHttpHandler } from "../../collector/src/http";
 import type { CollectorHandlerDependencies, CollectorValidationResult } from "../../collector/src/types";
 import { validateEventEnvelope } from "../../schema/src/validators";
+import { InMemoryRuntimePersistence } from "./persistence";
 import type { RuntimeEnvelope, RuntimeRequestHandlers, RuntimeStartOptions, RuntimeStartedServers } from "./types";
 import { projectEnvelopeToTrace } from "./projector";
 
@@ -60,21 +61,24 @@ export interface InMemoryRuntime extends RuntimeRequestHandlers {
   readonly sessionRepository: InMemorySessionRepository;
   readonly collectorStore: InMemoryCollectorStore<RuntimeEnvelope>;
   readonly collectorDependencies: CollectorHandlerDependencies<RuntimeEnvelope>;
+  readonly persistence: InMemoryRuntimePersistence;
 }
 
 export function createInMemoryRuntime(startedAtMs: number = Date.now()): InMemoryRuntime {
   const sessionRepository = new InMemorySessionRepository();
   const collectorStore = new InMemoryCollectorStore<RuntimeEnvelope>();
+  const persistence = new InMemoryRuntimePersistence();
 
   const collectorDependencies: CollectorHandlerDependencies<RuntimeEnvelope> = {
     startedAtMs,
     validateEvent: toCollectorValidationResult,
     getEventId: (event: RuntimeEnvelope): string => event.eventId,
     store: collectorStore,
-    onAcceptedEvent: (event: RuntimeEnvelope): void => {
+    onAcceptedEvent: async (event: RuntimeEnvelope): Promise<void> => {
       const current = sessionRepository.getBySessionId(event.sessionId);
       const projected = projectEnvelopeToTrace(current, event);
       sessionRepository.upsert(projected);
+      await persistence.persistAcceptedEvent(event, projected);
     }
   };
 
@@ -87,6 +91,7 @@ export function createInMemoryRuntime(startedAtMs: number = Date.now()): InMemor
     sessionRepository,
     collectorStore,
     collectorDependencies,
+    persistence,
     handleCollectorRaw: (request) => handleCollectorRawHttpRequest(request, collectorDependencies),
     handleApiRaw: (request) => handleApiRawHttpRequest(request, apiDependencies)
   };
@@ -120,4 +125,3 @@ export async function startInMemoryRuntimeServers(
     }
   };
 }
-

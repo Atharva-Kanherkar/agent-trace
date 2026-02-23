@@ -34,6 +34,9 @@ Updated: 2026-02-23
    - Process-level HTTP servers on `:8317` (collector) and `:8318` (api).
    - Runtime projector wiring from accepted events into session traces.
    - CLI forward integration coverage against runtime collector.
+   - In-memory persistence pipeline wiring:
+     - accepted events -> ClickHouse event writer
+     - projected traces -> PostgreSQL session/commit writer
 
 ## Quality gates
 
@@ -73,8 +76,11 @@ Feature set complete after Stage A:
    - Session aggregate writers/materialized flow pending.
 2. PostgreSQL writer implementation (sessions, commits, settings).
    - Core typed writer implementation complete.
-   - Real DB client adapter and collector wiring pending.
+   - In-memory collector wiring complete.
+   - Real DB client adapter pending.
 3. Collector projection pipeline to update session traces as events arrive.
+   - In-memory runtime projection + persistence orchestration complete.
+   - Production collector service wiring pending.
 
 Feature set complete after Stage B:
 

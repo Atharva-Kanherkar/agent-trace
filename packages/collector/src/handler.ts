@@ -42,6 +42,15 @@ function buildAcceptedPayload(accepted: boolean, deduped: boolean): CollectorAcc
   };
 }
 
+function isPromiseLike(value: unknown): value is Promise<void> {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const maybePromise = value as { readonly then?: unknown };
+  return typeof maybePromise.then === "function";
+}
+
 export function handleCollectorRequest<TEvent>(
   request: CollectorRequest,
   dependencies: CollectorHandlerDependencies<TEvent>
@@ -74,7 +83,12 @@ export function handleCollectorRequest<TEvent>(
     const ingest = dependencies.store.ingest(validation.value, eventId);
     if (ingest.accepted && dependencies.onAcceptedEvent !== undefined) {
       try {
-        dependencies.onAcceptedEvent(validation.value);
+        const callbackResult = dependencies.onAcceptedEvent(validation.value);
+        if (isPromiseLike(callbackResult)) {
+          void callbackResult.catch(() => {
+            // Collector request flow should remain available even when async side-effects fail.
+          });
+        }
       } catch {
         // Collector should not fail request handling if projection callback fails.
       }

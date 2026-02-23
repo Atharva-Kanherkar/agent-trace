@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const runtimeDir = path.resolve(__dirname, "..");
-const names = ["api", "cli", "collector", "schema"];
+const names = ["api", "cli", "collector", "platform", "schema"];
 
 for (const name of names) {
   const linkPath = path.join(runtimeDir, name);

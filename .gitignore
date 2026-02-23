@@ -7,4 +7,5 @@ coverage/
 packages/runtime/api
 packages/runtime/cli
 packages/runtime/collector
+packages/runtime/platform
 packages/runtime/schema

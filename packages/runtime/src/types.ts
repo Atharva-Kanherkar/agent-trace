@@ -1,6 +1,11 @@
 import type { ApiRawHttpRequest, ApiResponse } from "../../api/src/types";
 import type { CollectorRawHttpRequest, CollectorResponse } from "../../collector/src/types";
-import type { EventEnvelope } from "../../schema/src/types";
+import type {
+  ClickHouseAgentEventRow,
+  PostgresCommitRow,
+  PostgresSessionRow
+} from "../../platform/src/persistence-types";
+import type { AgentSessionTrace, EventEnvelope } from "../../schema/src/types";
 
 export interface RuntimeEnvelopePayload extends Readonly<Record<string, unknown>> {}
 
@@ -23,3 +28,14 @@ export interface RuntimeStartedServers {
   close(): Promise<void>;
 }
 
+export interface RuntimePersistenceSnapshot {
+  readonly clickHouseRows: readonly ClickHouseAgentEventRow[];
+  readonly postgresSessionRows: readonly PostgresSessionRow[];
+  readonly postgresCommitRows: readonly PostgresCommitRow[];
+  readonly writeFailures: readonly string[];
+}
+
+export interface RuntimePersistence {
+  persistAcceptedEvent(event: RuntimeEnvelope, trace: AgentSessionTrace): Promise<void>;
+  getSnapshot(): RuntimePersistenceSnapshot;
+}
