@@ -2,6 +2,7 @@ import type { ApiRawHttpRequest, ApiResponse } from "../../api/src/types";
 import type { CollectorRawHttpRequest, CollectorResponse } from "../../collector/src/types";
 import type {
   ClickHouseAgentEventRow,
+  ClickHouseSessionTraceRow,
   ClickHouseConnectionOptions,
   ClickHouseInsertClient,
   PostgresConnectionOptions,
@@ -36,6 +37,7 @@ export interface RuntimeStartedServers {
 
 export interface RuntimePersistenceSnapshot {
   readonly clickHouseRows: readonly ClickHouseAgentEventRow[];
+  readonly clickHouseSessionTraceRows: readonly ClickHouseSessionTraceRow[];
   readonly postgresSessionRows: readonly PostgresSessionRow[];
   readonly postgresCommitRows: readonly PostgresCommitRow[];
   readonly writeFailures: readonly string[];
@@ -48,6 +50,7 @@ export interface RuntimePersistence {
 
 export interface RuntimePersistenceClients {
   readonly clickHouseClient: ClickHouseInsertClient<ClickHouseAgentEventRow>;
+  readonly clickHouseSessionTraceClient?: ClickHouseInsertClient<ClickHouseSessionTraceRow>;
   readonly postgresSessionClient: PostgresSessionPersistenceClient;
 }
 

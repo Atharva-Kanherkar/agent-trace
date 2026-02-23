@@ -2,6 +2,7 @@ import {
   createClickHouseSdkInsertClient,
   createPostgresPgPersistenceClient
 } from "../../platform/src/database-adapters";
+import type { ClickHouseInsertClient, ClickHouseSessionTraceRow } from "../../platform/src/persistence-types";
 import { createWriterBackedRuntimePersistence } from "./persistence";
 import { createInMemoryRuntime, type InMemoryRuntime } from "./runtime";
 import type {
@@ -51,6 +52,8 @@ export function createDatabaseBackedRuntime(
 
   const persistence = createWriterBackedRuntimePersistence({
     clickHouseClient,
+    clickHouseSessionTraceClient:
+      clickHouseClient as unknown as ClickHouseInsertClient<ClickHouseSessionTraceRow>,
     postgresSessionClient: postgresClient
   });
 

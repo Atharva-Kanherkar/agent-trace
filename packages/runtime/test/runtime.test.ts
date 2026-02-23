@@ -101,9 +101,11 @@ test("runtime persists accepted events into clickhouse and postgres snapshots", 
   const snapshot = runtime.persistence.getSnapshot();
   assert.equal(snapshot.writeFailures.length, 0);
   assert.equal(snapshot.clickHouseRows.length, 1);
+  assert.equal(snapshot.clickHouseSessionTraceRows.length, 1);
   assert.equal(snapshot.postgresSessionRows.length, 1);
   assert.equal(snapshot.postgresCommitRows.length, 1);
   assert.equal(snapshot.clickHouseRows[0]?.event_id, "evt_runtime_persist_1");
+  assert.equal(snapshot.clickHouseSessionTraceRows[0]?.session_id, "sess_runtime_persist");
   assert.equal(snapshot.postgresSessionRows[0]?.session_id, "sess_runtime_persist");
   assert.equal(snapshot.postgresCommitRows[0]?.sha, "sha_runtime_persist_1");
 });
@@ -133,6 +135,7 @@ test("runtime dedupe prevents duplicate persistence writes for same event id", (
 
   const snapshot = runtime.persistence.getSnapshot();
   assert.equal(snapshot.clickHouseRows.length, 1);
+  assert.equal(snapshot.clickHouseSessionTraceRows.length, 1);
   assert.equal(snapshot.postgresSessionRows.length, 1);
   assert.equal(snapshot.postgresCommitRows.length, 1);
 });

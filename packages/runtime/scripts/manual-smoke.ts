@@ -45,6 +45,7 @@ function main(): void {
   console.log(`timelineEvents=${detail.payload.session.timeline.length}`);
   const snapshot = runtime.persistence.getSnapshot();
   console.log(`persistedEventRows=${snapshot.clickHouseRows.length}`);
+  console.log(`persistedSessionTraceRows=${snapshot.clickHouseSessionTraceRows.length}`);
   console.log(`persistedSessionRows=${snapshot.postgresSessionRows.length}`);
 }
 

@@ -84,7 +84,9 @@ test("createDatabaseBackedRuntime wires persistence through injected db clients"
     setImmediate(() => resolve());
   });
 
-  assert.equal(clickHouseClient.requests.length, 1);
+  assert.equal(clickHouseClient.requests.length, 2);
+  assert.equal(clickHouseClient.requests[0]?.table, "agent_events");
+  assert.equal(clickHouseClient.requests[1]?.table, "session_traces");
   assert.equal(postgresClient.sessionsRequests.length, 1);
   assert.equal(postgresClient.commitsRequests.length, 1);
 

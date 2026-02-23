@@ -26,5 +26,6 @@ test("runtime otel sink ingests events through shared dedupe projection and pers
 
   const snapshot = runtime.persistence.getSnapshot();
   assert.equal(snapshot.clickHouseRows.length, 1);
+  assert.equal(snapshot.clickHouseSessionTraceRows.length, 1);
   assert.equal(snapshot.postgresSessionRows.length, 1);
 });

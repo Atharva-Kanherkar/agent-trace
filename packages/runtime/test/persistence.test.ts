@@ -4,6 +4,7 @@ import test from "node:test";
 import type { AgentSessionTrace } from "../../schema/src/types";
 import type {
   ClickHouseAgentEventRow,
+  ClickHouseSessionTraceRow,
   ClickHouseInsertClient,
   ClickHouseInsertRequest,
   PostgresCommitRow,
@@ -19,6 +20,16 @@ class FakeClickHouseInsertClient implements ClickHouseInsertClient<ClickHouseAge
   public readonly requests: ClickHouseInsertRequest<ClickHouseAgentEventRow>[] = [];
 
   public async insertJsonEachRow(request: ClickHouseInsertRequest<ClickHouseAgentEventRow>): Promise<void> {
+    this.requests.push(request);
+  }
+}
+
+class FakeClickHouseSessionTraceInsertClient
+  implements ClickHouseInsertClient<ClickHouseSessionTraceRow>
+{
+  public readonly requests: ClickHouseInsertRequest<ClickHouseSessionTraceRow>[] = [];
+
+  public async insertJsonEachRow(request: ClickHouseInsertRequest<ClickHouseSessionTraceRow>): Promise<void> {
     this.requests.push(request);
   }
 }
@@ -49,6 +60,7 @@ class RecordingPersistence implements RuntimePersistence {
   public getSnapshot() {
     return {
       clickHouseRows: [],
+      clickHouseSessionTraceRows: [],
       postgresSessionRows: [],
       postgresCommitRows: [],
       writeFailures: []
@@ -58,9 +70,11 @@ class RecordingPersistence implements RuntimePersistence {
 
 test("createWriterBackedRuntimePersistence writes through provided clients", async () => {
   const clickHouseClient = new FakeClickHouseInsertClient();
+  const clickHouseSessionTraceClient = new FakeClickHouseSessionTraceInsertClient();
   const postgresClient = new FakePostgresSessionClient();
   const persistence = createWriterBackedRuntimePersistence({
     clickHouseClient,
+    clickHouseSessionTraceClient,
     postgresSessionClient: postgresClient
   });
 
@@ -91,6 +105,8 @@ test("createWriterBackedRuntimePersistence writes through provided clients", asy
 
   assert.equal(clickHouseClient.requests.length, 1);
   assert.equal(clickHouseClient.requests[0]?.rows[0]?.event_id, "evt_writer_backed");
+  assert.equal(clickHouseSessionTraceClient.requests.length, 1);
+  assert.equal(clickHouseSessionTraceClient.requests[0]?.rows[0]?.session_id, "sess_writer_backed");
   assert.equal(postgresClient.sessionsRequests.length, 1);
   assert.equal(postgresClient.commitsRequests.length, 1);
 });

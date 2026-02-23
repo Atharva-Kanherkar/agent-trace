@@ -50,6 +50,7 @@ Updated: 2026-02-23
    - CLI forward integration coverage against runtime collector.
    - In-memory persistence pipeline wiring:
      - accepted events -> ClickHouse event writer
+     - projected traces -> ClickHouse session trace writer
      - projected traces -> PostgreSQL session/commit writer
    - Pluggable runtime persistence (inject real DB-backed adapters).
    - DB-backed runtime composition factory with lifecycle-managed clients.
@@ -91,7 +92,8 @@ Feature set complete after Stage A:
 1. ClickHouse writer implementation:
    - Events writer for `agent_events` complete.
    - Session aggregate writer foundation for `session_traces` complete.
-   - Runtime wiring for `session_traces` persistence and materialized-flow orchestration pending.
+   - Runtime wiring for `session_traces` persistence complete.
+   - Materialized-flow orchestration pending.
 2. PostgreSQL writer implementation (sessions, commits, settings).
    - Core typed writer implementation complete.
    - In-memory collector wiring complete.
