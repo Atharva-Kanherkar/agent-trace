@@ -1,3 +1,5 @@
+import type { EventEnvelope, PrivacyTier } from "../../schema/src/types";
+
 export type HttpMethod = "GET" | "POST";
 
 export interface CollectorHealthResponse {
@@ -95,3 +97,30 @@ export interface CollectorProcessingStats {
   readonly processingFailures: number;
   readonly lastProcessingFailure?: string;
 }
+
+export interface TranscriptEventPayload extends Readonly<Record<string, unknown>> {}
+
+export interface TranscriptParseInput {
+  readonly filePath: string;
+  readonly privacyTier: PrivacyTier;
+  readonly sessionIdFallback?: string;
+  readonly ingestedAt?: string;
+}
+
+export interface TranscriptParseSuccess {
+  readonly ok: true;
+  readonly filePath: string;
+  readonly parsedEvents: readonly EventEnvelope<TranscriptEventPayload>[];
+  readonly skippedLines: number;
+  readonly errors: readonly [];
+}
+
+export interface TranscriptParseFailure {
+  readonly ok: false;
+  readonly filePath: string;
+  readonly parsedEvents: readonly EventEnvelope<TranscriptEventPayload>[];
+  readonly skippedLines: number;
+  readonly errors: readonly string[];
+}
+
+export type TranscriptParseResult = TranscriptParseSuccess | TranscriptParseFailure;

@@ -13,6 +13,10 @@
     "src/**/*.ts",
     "test/**/*.ts",
     "scripts/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../schema"
+    }
   ]
 }
-

@@ -14,6 +14,7 @@ Updated: 2026-02-23
    - In-memory deduplication store.
    - Raw HTTP adapter and Node HTTP handler creator.
    - Collector service wrapper for accepted-event processing pipeline + processing health stats.
+   - Transcript JSONL parser foundation (`parseTranscriptJsonl`) for Layer 3 ingestion.
 3. `@agent-trace/api`
    - Typed query handler (`/health`, `/v1/sessions`, `/v1/sessions/:id`, `/timeline`).
    - In-memory session repository.
@@ -103,6 +104,8 @@ Feature set complete after Stage B:
    - Direct Claude settings installation path pending.
 2. OTEL ingest receiver path integration.
 3. Transcript ingestion parser path.
+   - Base parser implementation complete.
+   - SessionEnd orchestration + ingestion trigger wiring pending.
 
 Feature set complete after Stage C:
 

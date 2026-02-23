@@ -1,8 +1,13 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
 import {
   createCollectorService,
   handleCollectorRawHttpRequest,
   handleCollectorRequest,
-  InMemoryCollectorStore
+  InMemoryCollectorStore,
+  parseTranscriptJsonl
 } from "../src";
 import { createSampleCollectorEvent, type SampleCollectorEvent } from "../src/samples";
 import type { CollectorHandlerDependencies, CollectorValidationResult } from "../src/types";
@@ -134,10 +139,33 @@ function main(): void {
     throw new Error("collector smoke failed: expected service ingest to be accepted");
   }
 
+  const transcriptDir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-trace-collector-smoke-"));
+  const transcriptPath = path.join(transcriptDir, "session.jsonl");
+  fs.writeFileSync(
+    transcriptPath,
+    `${JSON.stringify({
+      session_id: "sess_manual_001",
+      event: "assistant_response",
+      timestamp: "2026-02-23T10:00:00.000Z"
+    })}\n`,
+    "utf8"
+  );
+  const transcriptParse = parseTranscriptJsonl({
+    filePath: transcriptPath,
+    privacyTier: 1,
+    ingestedAt: "2026-02-23T10:01:00.000Z"
+  });
+  fs.rmSync(transcriptDir, { recursive: true, force: true });
+
+  if (!transcriptParse.ok || transcriptParse.parsedEvents.length !== 1) {
+    throw new Error("collector smoke failed: transcript parser did not produce expected event");
+  }
+
   console.log("collector manual smoke passed");
   console.log(`storedEvents=${stats.payload.stats.storedEvents}`);
   console.log(`dedupedEvents=${stats.payload.stats.dedupedEvents}`);
   console.log(`serviceAcceptedEvents=${service.getProcessingStats().acceptedEvents}`);
+  console.log(`transcriptParsedEvents=${transcriptParse.parsedEvents.length}`);
 }
 
 main();
