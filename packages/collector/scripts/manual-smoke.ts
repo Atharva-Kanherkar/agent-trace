@@ -5,6 +5,7 @@ import path from "node:path";
 import {
   createCollectorService,
   normalizeOtelExport,
+  processOtelExportPayload,
   createTranscriptIngestionProcessor,
   handleCollectorRawHttpRequest,
   handleCollectorRequest,
@@ -16,7 +17,8 @@ import type {
   CollectorHandlerDependencies,
   CollectorValidationResult,
   TranscriptEventPayload,
-  TranscriptIngestionSink
+  TranscriptIngestionSink,
+  OtelEventsSink
 } from "../src/types";
 import type { EventEnvelope } from "../../schema/src/types";
 
@@ -200,6 +202,45 @@ async function main(): Promise<void> {
   if (!otelNormalized.ok || otelNormalized.events.length !== 1) {
     throw new Error("collector smoke failed: otel normalizer did not produce expected event");
   }
+  const otelSinkBatches: number[] = [];
+  const otelSink: OtelEventsSink = {
+    ingestOtelEvents: async (events): Promise<void> => {
+      otelSinkBatches.push(events.length);
+    }
+  };
+  const otelProcessed = await processOtelExportPayload(
+    {
+      resourceLogs: [
+        {
+          scopeLogs: [
+            {
+              logRecords: [
+                {
+                  attributes: [
+                    {
+                      key: "session_id",
+                      value: { stringValue: "sess_manual_001" }
+                    },
+                    {
+                      key: "event_type",
+                      value: { stringValue: "tool_result" }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      privacyTier: 1,
+      sink: otelSink
+    }
+  );
+  if (otelProcessed.normalizedEvents !== 1 || otelProcessed.sinkFailed) {
+    throw new Error("collector smoke failed: otel export processing did not complete as expected");
+  }
 
   const transcriptIngestionBatches: Array<readonly EventEnvelope<TranscriptEventPayload>[]> = [];
   const transcriptSink: TranscriptIngestionSink = {
@@ -247,6 +288,8 @@ async function main(): Promise<void> {
   console.log(`transcriptParsedEvents=${transcriptParse.parsedEvents.length}`);
   console.log(`transcriptIngestionBatches=${transcriptIngestionBatches.length}`);
   console.log(`otelNormalizedEvents=${otelNormalized.events.length}`);
+  console.log(`otelProcessedEvents=${otelProcessed.normalizedEvents}`);
+  console.log(`otelSinkBatches=${otelSinkBatches.length}`);
 }
 
 void main();

@@ -155,3 +155,42 @@ export interface OtelNormalizeFailure {
 }
 
 export type OtelNormalizeResult = OtelNormalizeSuccess | OtelNormalizeFailure;
+
+export interface OtelEventsSink {
+  ingestOtelEvents(events: readonly EventEnvelope<TranscriptEventPayload>[]): Promise<void>;
+}
+
+export interface OtelExportProcessDependencies {
+  readonly privacyTier: PrivacyTier;
+  readonly onNormalizationErrors?: (errors: readonly string[]) => void;
+  readonly sink?: OtelEventsSink;
+}
+
+export interface OtelExportProcessResult {
+  readonly normalizedEvents: number;
+  readonly droppedRecords: number;
+  readonly normalizationFailed: boolean;
+  readonly sinkFailed: boolean;
+  readonly errors: readonly string[];
+}
+
+export interface OtelGrpcReceiverOptions {
+  readonly address?: string;
+  readonly privacyTier?: PrivacyTier;
+  readonly onNormalizationErrors?: (errors: readonly string[]) => void;
+  readonly sink?: OtelEventsSink;
+}
+
+export interface OtelGrpcReceiverStats {
+  readonly exportCalls: number;
+  readonly normalizedEvents: number;
+  readonly droppedRecords: number;
+  readonly normalizationFailures: number;
+  readonly sinkFailures: number;
+}
+
+export interface OtelGrpcReceiverHandle {
+  readonly address: string;
+  getStats(): OtelGrpcReceiverStats;
+  close(): Promise<void>;
+}

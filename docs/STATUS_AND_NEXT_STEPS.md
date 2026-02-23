@@ -17,6 +17,7 @@ Updated: 2026-02-23
    - Transcript JSONL parser foundation (`parseTranscriptJsonl`) for Layer 3 ingestion.
    - Session-end transcript ingestion processor (`createTranscriptIngestionProcessor`) with sink integration.
    - OTEL export normalizer foundation (`normalizeOtelExport`) for Layer 1 event extraction.
+   - OTEL gRPC receiver module (`startOtelGrpcReceiver`) with export processing stats.
 3. `@agent-trace/api`
    - Typed query handler (`/health`, `/v1/sessions`, `/v1/sessions/:id`, `/timeline`).
    - In-memory session repository.
@@ -106,7 +107,8 @@ Feature set complete after Stage B:
    - Direct Claude settings installation path pending.
 2. OTEL ingest receiver path integration.
    - OTEL payload normalization logic complete.
-   - gRPC receiver transport on `:4717` pending.
+   - gRPC receiver transport implementation complete.
+   - Default collector runtime wiring for `:4717` startup pending.
 3. Transcript ingestion parser path.
    - Base parser implementation complete.
    - SessionEnd ingestion processor abstraction complete.

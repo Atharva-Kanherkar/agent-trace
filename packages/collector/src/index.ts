@@ -1,5 +1,6 @@
 export * from "./handler";
 export * from "./http";
+export * from "./otel-grpc-receiver";
 export * from "./otel-normalizer";
 export * from "./samples";
 export * from "./service";
