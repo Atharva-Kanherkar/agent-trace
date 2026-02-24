@@ -7,6 +7,7 @@ import type {
   AgentTraceCliConfig,
   CliConfigStore,
   ClaudeHooksInstallResult,
+  ClaudeSettingsEnvironment,
   ClaudeSettingsDocument,
   ClaudeSettingsHookCommand,
   ClaudeSettingsHookEntry,
@@ -114,6 +115,22 @@ function toMutableHooks(settings: ClaudeSettingsDocument): Record<string, unknow
   return mutableHooks;
 }
 
+function toMutableEnv(settings: ClaudeSettingsDocument): Record<string, string> {
+  const mutableEnv: Record<string, string> = {};
+  const env = settings["env"];
+  if (!isRecord(env)) {
+    return mutableEnv;
+  }
+
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value === "string") {
+      mutableEnv[key] = value;
+    }
+  }
+
+  return mutableEnv;
+}
+
 function hasCommandOnEvent(entries: readonly unknown[], expectedCommand: string): boolean {
   return entries.some((entry) => {
     if (!isRecord(entry)) {
@@ -152,12 +169,15 @@ function areHooksInstalled(hooksMap: Record<string, unknown[]>, config: AgentTra
 
 function toSettingsDocument(
   settings: ClaudeSettingsDocument,
-  hooksMap: Record<string, unknown[]>
+  hooksMap: Record<string, unknown[]>,
+  envMap: Record<string, string>
 ): ClaudeSettingsDocument {
   const hooks: ClaudeSettingsHooks = hooksMap;
+  const env: ClaudeSettingsEnvironment = envMap;
   return {
     ...settings,
-    hooks
+    hooks,
+    ...(Object.keys(env).length > 0 ? { env } : {})
   };
 }
 
@@ -221,7 +241,8 @@ export class FileCliConfigStore implements CliConfigStore {
 
   public installClaudeHooks(
     config: AgentTraceClaudeHookConfig,
-    configDirOverride?: string
+    configDirOverride?: string,
+    settingsEnv: ClaudeSettingsEnvironment = {}
   ): ClaudeHooksInstallResult {
     const configDir = this.resolveConfigDir(configDirOverride);
     fs.mkdirSync(configDir, { recursive: true });
@@ -229,6 +250,7 @@ export class FileCliConfigStore implements CliConfigStore {
     const settingsPath = this.resolveClaudeSettingsPath(configDirOverride);
     const read = readSettingsDocument(settingsPath);
     const hooksMap = toMutableHooks(read.settings);
+    const envMap = toMutableEnv(read.settings);
     let changed = !read.exists;
 
     for (const hook of config.hooks) {
@@ -240,9 +262,16 @@ export class FileCliConfigStore implements CliConfigStore {
       }
     }
 
+    Object.entries(settingsEnv).forEach(([key, value]) => {
+      if (envMap[key] !== value) {
+        envMap[key] = value;
+        changed = true;
+      }
+    });
+
     const installed = areHooksInstalled(hooksMap, config);
     if (changed) {
-      const updatedSettings = toSettingsDocument(read.settings, hooksMap);
+      const updatedSettings = toSettingsDocument(read.settings, hooksMap, envMap);
       fs.writeFileSync(settingsPath, `${JSON.stringify(updatedSettings, null, 2)}\n`, "utf8");
     }
 

@@ -178,3 +178,31 @@ test("transcript ingestion processor ignores transcript-source events to prevent
   assert.equal(sink.ingestedBatches.length, 0);
   fs.rmSync(path.dirname(transcriptPath), { recursive: true, force: true });
 });
+
+test("transcript ingestion processor resolves ~/ paths before parsing", async () => {
+  const homeDir = os.homedir();
+  const dir = fs.mkdtempSync(path.join(homeDir, ".agent-trace-transcript-home-"));
+  const transcriptPath = path.join(dir, "session.jsonl");
+  fs.writeFileSync(
+    transcriptPath,
+    `${JSON.stringify({
+      session_id: "sess_transcript_tilde",
+      event: "assistant_response",
+      timestamp: "2026-02-23T10:10:01.000Z"
+    })}\n`,
+    "utf8"
+  );
+  const relativePath = path.relative(homeDir, transcriptPath);
+  assert.equal(relativePath.startsWith(".."), false);
+
+  const sink = new RecordingTranscriptSink();
+  const processor = createTranscriptIngestionProcessor({
+    sink
+  });
+
+  await processor.processAcceptedEvent(createTranscriptTriggerEvent(`~/${relativePath}`));
+
+  assert.equal(sink.ingestedBatches.length, 1);
+  assert.equal(sink.ingestedBatches[0]?.length, 1);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

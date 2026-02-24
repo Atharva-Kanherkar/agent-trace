@@ -91,6 +91,7 @@ export interface DatabaseBackedRuntimeOptions {
   readonly hydrateFromClickHouse?: boolean;
   readonly bootstrapSessionTraceLimit?: number;
   readonly sessionTraceSyncIntervalMs?: number;
+  readonly sessionTimelineEventLimit?: number;
 }
 
 export interface DatabaseBackedRuntime<TRuntime = unknown> {

@@ -103,3 +103,67 @@ test("normalizeOtelExport keeps valid records and reports invalid records", () =
   assert.equal(result.droppedRecords, 1);
   assert.equal(result.errors.length, 1);
 });
+
+test("normalizeOtelExport accepts event.name attribute as event type", () => {
+  const result = normalizeOtelExport({
+    privacyTier: 1,
+    payload: {
+      resourceLogs: [
+        {
+          scopeLogs: [
+            {
+              logRecords: [
+                {
+                  attributes: [
+                    {
+                      key: "session.id",
+                      value: { stringValue: "sess_otel_event_name_001" }
+                    },
+                    {
+                      key: "event.name",
+                      value: { stringValue: "user_prompt_submit" }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0]?.eventType, "user_prompt_submit");
+  assert.equal(result.events[0]?.sessionId, "sess_otel_event_name_001");
+});
+
+test("normalizeOtelExport merges JSON body fields into payload", () => {
+  const result = normalizeOtelExport({
+    privacyTier: 1,
+    payload: {
+      resourceLogs: [
+        {
+          scopeLogs: [
+            {
+              logRecords: [
+                {
+                  body: {
+                    stringValue: "{\"event_type\":\"api_request\",\"session_id\":\"sess_otel_body_001\",\"cost_usd\":0.12}"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0]?.eventType, "api_request");
+  assert.equal(result.events[0]?.sessionId, "sess_otel_body_001");
+  assert.equal(result.events[0]?.payload["cost_usd"], 0.12);
+});

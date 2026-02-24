@@ -28,9 +28,11 @@ export interface ClaudeSettingsHookEntry {
 }
 
 export type ClaudeSettingsHooks = Readonly<Record<string, readonly unknown[]>>;
+export type ClaudeSettingsEnvironment = Readonly<Record<string, string>>;
 
 export interface ClaudeSettingsDocument extends Readonly<Record<string, unknown>> {
   readonly hooks?: ClaudeSettingsHooks;
+  readonly env?: ClaudeSettingsEnvironment;
 }
 
 export interface CliParsedArgs {
@@ -58,7 +60,11 @@ export interface CliConfigStore {
   readConfig(configDirOverride?: string): AgentTraceCliConfig | undefined;
   writeConfig(config: AgentTraceCliConfig, configDirOverride?: string): string;
   writeClaudeHooks(config: AgentTraceClaudeHookConfig, configDirOverride?: string): string;
-  installClaudeHooks(config: AgentTraceClaudeHookConfig, configDirOverride?: string): ClaudeHooksInstallResult;
+  installClaudeHooks(
+    config: AgentTraceClaudeHookConfig,
+    configDirOverride?: string,
+    settingsEnv?: ClaudeSettingsEnvironment
+  ): ClaudeHooksInstallResult;
   isClaudeHooksInstalled(config: AgentTraceClaudeHookConfig, configDirOverride?: string): boolean;
 }
 

@@ -1,3 +1,6 @@
+import os from "node:os";
+import path from "node:path";
+
 import type { EventEnvelope } from "../../schema/src/types";
 import type {
   CollectorAcceptedEventProcessor,
@@ -43,6 +46,22 @@ function pickTranscriptPath(payload: TranscriptEventPayload): string | undefined
   return readString(record, ["transcript_path", "transcriptPath"]);
 }
 
+function resolveTranscriptPath(filePath: string): string {
+  if (filePath === "~") {
+    return os.homedir();
+  }
+  if (filePath.startsWith("~/")) {
+    return path.join(os.homedir(), filePath.slice(2));
+  }
+  if (filePath.startsWith("$HOME/")) {
+    return path.join(os.homedir(), filePath.slice("$HOME/".length));
+  }
+  if (filePath.startsWith("${HOME}/")) {
+    return path.join(os.homedir(), filePath.slice("${HOME}/".length));
+  }
+  return filePath;
+}
+
 export function createTranscriptIngestionProcessor(
   options: TranscriptIngestionProcessorOptions
 ): CollectorAcceptedEventProcessor<EventEnvelope<TranscriptEventPayload>> {
@@ -60,9 +79,10 @@ export function createTranscriptIngestionProcessor(
       if (transcriptPath === undefined) {
         return;
       }
+      const resolvedTranscriptPath = resolveTranscriptPath(transcriptPath);
 
       const parseResult = parseTranscriptJsonl({
-        filePath: transcriptPath,
+        filePath: resolvedTranscriptPath,
         privacyTier: event.privacyTier,
         sessionIdFallback: event.sessionId,
         ingestedAt: event.ingestedAt

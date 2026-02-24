@@ -2,6 +2,7 @@ import {
   createClickHouseSdkInsertClient,
   createPostgresPgPersistenceClient
 } from "../../platform/src/database-adapters";
+import { ClickHouseEventReader } from "../../platform/src/clickhouse-event-reader";
 import { ClickHouseSessionTraceReader } from "../../platform/src/clickhouse-session-trace-reader";
 import type { ClickHouseInsertClient, ClickHouseSessionTraceRow } from "../../platform/src/persistence-types";
 import { createWriterBackedRuntimePersistence } from "./persistence";
@@ -33,14 +34,25 @@ function normalizeSyncIntervalMs(input: number | undefined): number {
 async function hydrateRuntimeFromClickHouse(
   runtime: InMemoryRuntime,
   clickHouseClient: RuntimeClosableClickHouseClient,
-  limit: number | undefined
+  limit: number | undefined,
+  timelineEventLimit: number | undefined
 ): Promise<number> {
   const reader = new ClickHouseSessionTraceReader(clickHouseClient);
+  const eventReader = new ClickHouseEventReader(clickHouseClient);
   const traces = await reader.listLatest(limit);
-  traces.forEach((trace) => {
+  const hydratedTraces = await Promise.all(
+    traces.map(async (trace) => {
+      const timeline = await eventReader.listTimelineBySessionId(trace.sessionId, timelineEventLimit);
+      return {
+        ...trace,
+        timeline
+      };
+    })
+  );
+  hydratedTraces.forEach((trace) => {
     runtime.sessionRepository.upsert(trace);
   });
-  return traces.length;
+  return hydratedTraces.length;
 }
 
 async function closeClients(
@@ -96,7 +108,12 @@ export function createDatabaseBackedRuntime(
 
     syncInFlight = true;
     try {
-      return await hydrateRuntimeFromClickHouse(runtime, clickHouseClient, options.bootstrapSessionTraceLimit);
+      return await hydrateRuntimeFromClickHouse(
+        runtime,
+        clickHouseClient,
+        options.bootstrapSessionTraceLimit,
+        options.sessionTimelineEventLimit
+      );
     } catch {
       return 0;
     } finally {

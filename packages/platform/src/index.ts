@@ -1,4 +1,5 @@
 export * from "./clickhouse-datetime";
+export * from "./clickhouse-event-reader";
 export * from "./clickhouse-event-writer";
 export * from "./clickhouse-session-trace-reader";
 export * from "./clickhouse-session-trace-writer";

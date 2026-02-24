@@ -46,6 +46,14 @@ function pickNumber(record: UnknownRecord, keys: readonly string[]): number | un
   return undefined;
 }
 
+function mergeRecordIntoPayload(target: Record<string, unknown>, source: UnknownRecord): void {
+  Object.entries(source).forEach(([key, value]) => {
+    if (typeof value === "string" || (typeof value === "number" && Number.isFinite(value)) || typeof value === "boolean") {
+      target[key] = value;
+    }
+  });
+}
+
 function extractPrimitiveFromAnyValue(value: unknown): Primitive | undefined {
   const record = asRecord(value);
   if (record === undefined) {
@@ -148,6 +156,17 @@ function normalizeLogRecord(
   const body = extractPrimitiveFromAnyValue(logRecordObject["body"]);
   if (body !== undefined) {
     payload["body"] = body;
+    if (typeof body === "string" && body.trim().startsWith("{")) {
+      try {
+        const parsedBody = JSON.parse(body) as unknown;
+        const bodyRecord = asRecord(parsedBody);
+        if (bodyRecord !== undefined) {
+          mergeRecordIntoPayload(payload, bodyRecord);
+        }
+      } catch {
+        // body can be non-JSON text; keep as-is
+      }
+    }
   }
 
   const severityText = pickString(logRecordObject, ["severityText"]);
@@ -159,7 +178,7 @@ function normalizeLogRecord(
     payload["severity_number"] = severityNumber;
   }
 
-  const eventType = pickString(payload as UnknownRecord, ["event_type", "event.type", "type"]) ?? "otel_log";
+  const eventType = pickString(payload as UnknownRecord, ["event_type", "event.name", "event.type", "type"]) ?? "otel_log";
   const sessionId =
     pickString(payload as UnknownRecord, ["session_id", "session.id", "sessionId"]) ?? "unknown_session";
   const promptId = pickString(payload as UnknownRecord, ["prompt_id", "prompt.id", "promptId"]);

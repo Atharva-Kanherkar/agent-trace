@@ -67,6 +67,13 @@ test("runInit writes config and runStatus reports configured state", () => {
   assert.equal(initResult.hooks.hooks.length, 5);
   assert.equal(initResult.hooks.hooks[0]?.event, "SessionStart");
 
+  const settings = JSON.parse(fs.readFileSync(initResult.settingsPath, "utf8")) as Record<string, unknown>;
+  const env = settings["env"] as Record<string, unknown> | undefined;
+  assert.equal(env?.["CLAUDE_CODE_ENABLE_TELEMETRY"], "1");
+  assert.equal(env?.["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"], "http://127.0.0.1:4717");
+  assert.equal(env?.["OTEL_LOG_USER_PROMPTS"], "1");
+  assert.equal(env?.["OTEL_LOG_TOOL_DETAILS"], "1");
+
   const after = runStatus(configDir, store);
   assert.equal(after.ok, true);
   if (after.ok) {

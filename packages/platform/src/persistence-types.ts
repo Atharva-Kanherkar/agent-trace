@@ -27,6 +27,20 @@ export interface ClickHouseAgentEventRow {
   readonly attributes: Readonly<Record<string, string>>;
 }
 
+export interface ClickHouseAgentEventReadRow {
+  readonly event_id: string;
+  readonly event_type: string;
+  readonly event_timestamp: string;
+  readonly session_id: string;
+  readonly prompt_id: string | null;
+  readonly tool_success: number | null;
+  readonly tool_name: string | null;
+  readonly cost_usd: number | string | null;
+  readonly input_tokens: number | string | null;
+  readonly output_tokens: number | string | null;
+  readonly attributes: Readonly<Record<string, string>>;
+}
+
 export interface ClickHouseSessionTraceRow {
   readonly session_id: string;
   readonly version: number;
