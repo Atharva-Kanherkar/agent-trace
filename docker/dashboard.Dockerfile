@@ -8,7 +8,7 @@ COPY tsconfig.base.json tsconfig.json ./
 COPY scripts ./scripts
 COPY packages ./packages
 
-RUN npm ci
+RUN npm ci --include=dev
 RUN npm run --workspace @agent-trace/dashboard build:web
 
 EXPOSE 3100

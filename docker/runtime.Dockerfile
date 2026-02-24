@@ -9,7 +9,7 @@ COPY scripts ./scripts
 COPY packages ./packages
 COPY migrations ./migrations
 
-RUN npm ci
+RUN npm ci --include=dev
 RUN npm run --workspace @agent-trace/runtime build
 
 EXPOSE 4717 8317 8318

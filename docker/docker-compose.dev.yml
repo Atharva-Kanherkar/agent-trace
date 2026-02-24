@@ -4,7 +4,7 @@ services:
       - ..:/app
       - dashboard_node_modules:/app/node_modules
     command: >
-      bash -lc "npm ci &&
+      bash -lc "npm ci --include=dev &&
       npm run --workspace @agent-trace/dashboard build:web &&
       npm run --workspace @agent-trace/dashboard start:web -- --hostname 0.0.0.0 --port 3100"
 
@@ -13,7 +13,7 @@ services:
       - ..:/app
       - collector_node_modules:/app/node_modules
     command: >
-      bash -lc "npm ci &&
+      bash -lc "npm ci --include=dev &&
       npm run --workspace @agent-trace/runtime build &&
       node packages/runtime/dist/src/cli.js"
 
@@ -22,7 +22,7 @@ services:
       - ..:/app
       - api_node_modules:/app/node_modules
     command: >
-      bash -lc "npm ci &&
+      bash -lc "npm ci --include=dev &&
       npm run --workspace @agent-trace/runtime build &&
       node packages/runtime/dist/src/cli.js"
 
