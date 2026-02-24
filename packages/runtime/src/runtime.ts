@@ -2,11 +2,14 @@ import http from "node:http";
 
 import { handleApiRawHttpRequest, InMemorySessionRepository } from "../../api/src";
 import { createApiHttpHandler } from "../../api/src/http";
-import { handleCollectorRawHttpRequest, InMemoryCollectorStore, startOtelGrpcReceiver } from "../../collector/src";
-import { createCollectorHttpHandler } from "../../collector/src/http";
-import type { CollectorHandlerDependencies, CollectorValidationResult } from "../../collector/src/types";
-import type { OtelEventsSink, OtelGrpcReceiverHandle } from "../../collector/src/types";
-import { validateEventEnvelope } from "../../schema/src/validators";
+import { createCollectorHttpHandler, createEnvelopeCollectorService, startOtelGrpcReceiver } from "../../collector/src";
+import type {
+  CollectorEventStore,
+  CollectorHandlerDependencies,
+  EnvelopeCollectorService,
+  OtelEventsSink,
+  OtelGrpcReceiverHandle
+} from "../../collector/src/types";
 import { InMemoryRuntimePersistence } from "./persistence";
 import type {
   InMemoryRuntimeOptions,
@@ -17,23 +20,6 @@ import type {
   RuntimeStartedServers
 } from "./types";
 import { projectEnvelopeToTrace } from "./projector";
-
-function toCollectorValidationResult(input: unknown): CollectorValidationResult<RuntimeEnvelope> {
-  const result = validateEventEnvelope(input);
-  if (!result.ok) {
-    return {
-      ok: false,
-      value: undefined,
-      errors: result.errors
-    };
-  }
-
-  return {
-    ok: true,
-    value: result.value as RuntimeEnvelope,
-    errors: []
-  };
-}
 
 function toAddress(server: http.Server): string {
   const address = server.address();
@@ -67,8 +53,9 @@ async function close(server: http.Server): Promise<void> {
 
 export interface InMemoryRuntime extends RuntimeRequestHandlers {
   readonly sessionRepository: InMemorySessionRepository;
-  readonly collectorStore: InMemoryCollectorStore<RuntimeEnvelope>;
+  readonly collectorStore: CollectorEventStore<RuntimeEnvelope>;
   readonly collectorDependencies: CollectorHandlerDependencies<RuntimeEnvelope>;
+  readonly collectorService: EnvelopeCollectorService;
   readonly persistence: RuntimePersistence;
 }
 
@@ -84,19 +71,7 @@ async function projectAndPersistEvent(
 }
 
 export function createRuntimeOtelSink(runtime: InMemoryRuntime): OtelEventsSink {
-  return {
-    ingestOtelEvents: async (events): Promise<void> => {
-      for (const event of events) {
-        const runtimeEvent = event as RuntimeEnvelope;
-        const ingest = runtime.collectorStore.ingest(runtimeEvent, runtimeEvent.eventId);
-        if (!ingest.accepted) {
-          continue;
-        }
-
-        await projectAndPersistEvent(runtimeEvent, runtime.sessionRepository, runtime.persistence);
-      }
-    }
-  };
+  return runtime.collectorService.otelSink;
 }
 
 function resolveRuntimeOptions(input: number | InMemoryRuntimeOptions | undefined): {
@@ -121,18 +96,16 @@ function resolveRuntimeOptions(input: number | InMemoryRuntimeOptions | undefine
 export function createInMemoryRuntime(input?: number | InMemoryRuntimeOptions): InMemoryRuntime {
   const options = resolveRuntimeOptions(input);
   const sessionRepository = new InMemorySessionRepository();
-  const collectorStore = new InMemoryCollectorStore<RuntimeEnvelope>();
   const persistence = options.persistence;
 
-  const collectorDependencies: CollectorHandlerDependencies<RuntimeEnvelope> = {
+  const collectorService = createEnvelopeCollectorService({
     startedAtMs: options.startedAtMs,
-    validateEvent: toCollectorValidationResult,
-    getEventId: (event: RuntimeEnvelope): string => event.eventId,
-    store: collectorStore,
     onAcceptedEvent: async (event: RuntimeEnvelope): Promise<void> => {
       await projectAndPersistEvent(event, sessionRepository, persistence);
     }
-  };
+  });
+  const collectorDependencies: CollectorHandlerDependencies<RuntimeEnvelope> = collectorService.dependencies;
+  const collectorStore: CollectorEventStore<RuntimeEnvelope> = collectorService.store;
 
   const apiDependencies = {
     startedAtMs: options.startedAtMs,
@@ -143,8 +116,9 @@ export function createInMemoryRuntime(input?: number | InMemoryRuntimeOptions): 
     sessionRepository,
     collectorStore,
     collectorDependencies,
+    collectorService,
     persistence,
-    handleCollectorRaw: (request) => handleCollectorRawHttpRequest(request, collectorDependencies),
+    handleCollectorRaw: collectorService.handleRaw,
     handleApiRaw: (request) => handleApiRawHttpRequest(request, apiDependencies)
   };
 }

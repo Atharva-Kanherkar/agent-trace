@@ -1,8 +1,18 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import { createInMemoryRuntime } from "../src";
 import { createRuntimeEnvelope } from "../src/samples";
+
+function createTempTranscriptFile(content: string): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-trace-runtime-transcript-"));
+  const filePath = path.join(dir, "session.jsonl");
+  fs.writeFileSync(filePath, content, "utf8");
+  return filePath;
+}
 
 test("runtime wires collector ingest into api session query", () => {
   const runtime = createInMemoryRuntime(Date.parse("2026-02-23T10:00:00.000Z"));
@@ -138,4 +148,78 @@ test("runtime dedupe prevents duplicate persistence writes for same event id", (
   assert.equal(snapshot.clickHouseSessionTraceRows.length, 1);
   assert.equal(snapshot.postgresSessionRows.length, 1);
   assert.equal(snapshot.postgresCommitRows.length, 1);
+});
+
+test("runtime ingests transcript payload on stop hook and projects prompt/token metrics", async () => {
+  const runtime = createInMemoryRuntime(Date.parse("2026-02-24T11:19:00.000Z"));
+  const transcriptPath = createTempTranscriptFile(
+    `${JSON.stringify({
+      sessionId: "sess_runtime_transcript",
+      type: "user",
+      timestamp: "2026-02-24T11:19:37.000Z",
+      uuid: "uuid_user_1",
+      message: {
+        role: "user",
+        content: "hello from transcript"
+      }
+    })}\n${JSON.stringify({
+      sessionId: "sess_runtime_transcript",
+      type: "assistant",
+      timestamp: "2026-02-24T11:19:40.000Z",
+      requestId: "req_runtime_transcript_1",
+      message: {
+        id: "msg_runtime_transcript_1",
+        model: "claude-opus-4-6",
+        role: "assistant",
+        content: [{ type: "text", text: "response" }],
+        usage: {
+          input_tokens: 7,
+          output_tokens: 11,
+          cache_read_input_tokens: 13
+        }
+      }
+    })}\n`
+  );
+
+  try {
+    const ingest = runtime.handleCollectorRaw({
+      method: "POST",
+      url: "/v1/hooks",
+      rawBody: JSON.stringify(
+        createRuntimeEnvelope({
+          sessionId: "sess_runtime_transcript",
+          eventId: "evt_runtime_transcript_stop",
+          eventType: "Stop",
+          eventTimestamp: "2026-02-24T11:19:45.000Z",
+          payload: {
+            user_id: "user_runtime_transcript",
+            transcript_path: transcriptPath
+          }
+        })
+      )
+    });
+    assert.equal(ingest.statusCode, 202);
+
+    await new Promise<void>((resolve) => {
+      setTimeout(() => resolve(), 10);
+    });
+
+    const detail = runtime.handleApiRaw({
+      method: "GET",
+      url: "/v1/sessions/sess_runtime_transcript"
+    });
+    assert.equal(detail.statusCode, 200);
+    assert.equal(detail.payload.status, "ok");
+    if (detail.payload.status === "ok" && "session" in detail.payload) {
+      assert.equal(detail.payload.session.metrics.promptCount, 1);
+      assert.equal(detail.payload.session.metrics.totalInputTokens, 7);
+      assert.equal(detail.payload.session.metrics.totalOutputTokens, 11);
+      assert.equal(detail.payload.session.metrics.modelsUsed.includes("claude-opus-4-6"), true);
+      assert.equal(detail.payload.session.timeline.length >= 3, true);
+    } else {
+      assert.fail("expected session detail payload");
+    }
+  } finally {
+    fs.rmSync(path.dirname(transcriptPath), { recursive: true, force: true });
+  }
 });
