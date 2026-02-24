@@ -4,7 +4,7 @@ import { FileCliConfigStore } from "./config-store";
 
 function ensurePrivacyTierOrDefault(value: PrivacyTier | undefined): PrivacyTier {
   if (value === undefined) {
-    return 1;
+    return 2;
   }
   return value;
 }

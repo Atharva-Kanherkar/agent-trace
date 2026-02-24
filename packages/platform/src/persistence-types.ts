@@ -36,6 +36,7 @@ export interface ClickHouseAgentEventReadRow {
   readonly tool_success: number | null;
   readonly tool_name: string | null;
   readonly tool_duration_ms: number | string | null;
+  readonly model: string | null;
   readonly cost_usd: number | string | null;
   readonly input_tokens: number | string | null;
   readonly output_tokens: number | string | null;

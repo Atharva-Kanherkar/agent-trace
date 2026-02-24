@@ -97,6 +97,47 @@ function buildAttributes(event: PlatformEventEnvelope): Readonly<Record<string, 
     if (command !== undefined) {
       attributes["command"] = command;
     }
+    const toolInput = pickUnknown(payload, "tool_input", "toolInput");
+    if (toolInput !== undefined) {
+      const inputRecord = typeof toolInput === "object" && toolInput !== null && !Array.isArray(toolInput)
+        ? toolInput as Record<string, unknown>
+        : undefined;
+
+      const filePath = inputRecord !== undefined
+        ? (typeof inputRecord["file_path"] === "string" ? inputRecord["file_path"]
+          : typeof inputRecord["filePath"] === "string" ? inputRecord["filePath"] : undefined)
+        : undefined;
+      if (filePath !== undefined) {
+        attributes["file_path"] = filePath;
+      }
+
+      const toolName = pickString(payload, "tool_name", "toolName");
+
+      if (toolName === "Edit" && inputRecord !== undefined) {
+        const oldStr = typeof inputRecord["old_string"] === "string" ? inputRecord["old_string"] : undefined;
+        const newStr = typeof inputRecord["new_string"] === "string" ? inputRecord["new_string"] : undefined;
+        if (oldStr !== undefined) {
+          attributes["old_string"] = oldStr.length > 2000 ? oldStr.slice(0, 1997) + "..." : oldStr;
+        }
+        if (newStr !== undefined) {
+          attributes["new_string"] = newStr.length > 2000 ? newStr.slice(0, 1997) + "..." : newStr;
+        }
+      }
+
+      if (toolName === "Write" && inputRecord !== undefined) {
+        const content = typeof inputRecord["content"] === "string" ? inputRecord["content"] : undefined;
+        if (content !== undefined) {
+          attributes["write_content"] = content.length > 5000 ? content.slice(0, 4997) + "..." : content;
+        }
+      }
+
+      const serialized = typeof toolInput === "string" ? toolInput : JSON.stringify(toolInput);
+      attributes["tool_input"] = serialized.length > 500 ? serialized.slice(0, 497) + "..." : serialized;
+    }
+    const responseText = pickString(payload, "response_text", "responseText");
+    if (responseText !== undefined) {
+      attributes["response_text"] = responseText.length > 2000 ? responseText.slice(0, 1997) + "..." : responseText;
+    }
   }
 
   return attributes;

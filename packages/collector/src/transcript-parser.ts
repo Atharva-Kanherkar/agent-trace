@@ -236,6 +236,13 @@ function buildNormalizedPayload(
     payload["prompt_text"] = promptText;
   }
 
+  if (eventType === "api_response") {
+    const responseText = readPromptText(message);
+    if (responseText !== undefined) {
+      payload["response_text"] = responseText;
+    }
+  }
+
   const toolUse = findMessageContentRecordByType(message, "tool_use");
   if (toolUse !== undefined) {
     const toolName = readString(toolUse, ["name"]);
@@ -249,6 +256,9 @@ function buildNormalizedPayload(
     }
 
     const toolInput = asRecord(toolUse["input"]);
+    if (toolInput !== undefined) {
+      payload["tool_input"] = toolInput;
+    }
     const filePath = toolInput !== undefined ? readString(toolInput, ["file_path", "filePath"]) : undefined;
     if (filePath !== undefined) {
       payload["file_path"] = filePath;

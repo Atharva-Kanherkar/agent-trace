@@ -30,6 +30,8 @@ export interface UiSessionReplayEvent {
   readonly inputTokens?: number;
   readonly outputTokens?: number;
   readonly detail?: string;
+  readonly details?: Readonly<Record<string, unknown>>;
+  readonly tokens?: Readonly<Record<string, unknown>>;
 }
 
 export interface UiSessionCommit {

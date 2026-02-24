@@ -293,7 +293,7 @@ function pickTimestamp(payload: HookPayload, now: string): string {
 function getPrivacyTier(store: CliConfigStore, configDir?: string): PrivacyTier {
   const config = store.readConfig(configDir);
   if (config === undefined) {
-    return 1;
+    return 2;
   }
   return config.privacyTier;
 }

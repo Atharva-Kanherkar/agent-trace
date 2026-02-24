@@ -30,6 +30,7 @@ function createRow(overrides: Partial<ClickHouseAgentEventReadRow> = {}): ClickH
     tool_success: 1,
     tool_name: "Read",
     tool_duration_ms: null,
+    model: null,
     cost_usd: "0.02",
     input_tokens: 120,
     output_tokens: 40,
@@ -56,9 +57,62 @@ test("toTimelineEventFromClickHouseRow maps clickhouse row into timeline event",
   });
 });
 
+test("toTimelineEventFromClickHouseRow extracts prompt_text from attributes into details.promptText", () => {
+  const row = createRow({
+    event_type: "user_prompt",
+    tool_name: null,
+    tool_success: null,
+    cost_usd: null,
+    input_tokens: null,
+    output_tokens: null,
+    attributes: {
+      event_id_raw: "evt_prompt_001",
+      prompt_text: "What is the meaning of life?"
+    }
+  });
+  const event = toTimelineEventFromClickHouseRow(row);
+  assert.equal(event.details?.["promptText"], "What is the meaning of life?");
+});
+
+test("toTimelineEventFromClickHouseRow extracts response_text and model from attributes and columns", () => {
+  const row = createRow({
+    event_type: "api_response",
+    tool_name: null,
+    tool_success: null,
+    model: "claude-opus-4-6",
+    cost_usd: "0.05",
+    input_tokens: 100,
+    output_tokens: 50,
+    attributes: {
+      event_id_raw: "evt_response_001",
+      response_text: "The answer is 42."
+    }
+  });
+  const event = toTimelineEventFromClickHouseRow(row);
+  assert.equal(event.details?.["responseText"], "The answer is 42.");
+  assert.equal(event.details?.["model"], "claude-opus-4-6");
+  assert.equal(event.costUsd, 0.05);
+  assert.deepEqual(event.tokens, { input: 100, output: 50 });
+});
+
+test("toTimelineEventFromClickHouseRow parses tool_input JSON from attributes", () => {
+  const row = createRow({
+    event_type: "api_tool_use",
+    tool_name: "Edit",
+    attributes: {
+      event_id_raw: "evt_tool_001",
+      tool_input: JSON.stringify({ file_path: "/src/main.ts", old_string: "foo", new_string: "bar" })
+    }
+  });
+  const event = toTimelineEventFromClickHouseRow(row);
+  const toolInput = event.details?.["toolInput"] as Record<string, unknown> | undefined;
+  assert.notEqual(toolInput, undefined, "expected toolInput in details");
+  assert.equal(toolInput?.["file_path"], "/src/main.ts");
+});
+
 test("ClickHouseEventReader listTimelineBySessionId builds query and maps rows", async () => {
   const expectedQuery = [
-    "SELECT event_id, event_type, event_timestamp, session_id, prompt_id, tool_success, tool_name, tool_duration_ms, cost_usd, input_tokens, output_tokens, attributes",
+    "SELECT event_id, event_type, event_timestamp, session_id, prompt_id, tool_success, tool_name, tool_duration_ms, model, cost_usd, input_tokens, output_tokens, attributes",
     "FROM agent_events",
     "WHERE session_id = 'sess_''quoted'",
     "ORDER BY event_timestamp ASC",

@@ -13,6 +13,7 @@ const EVENT_SELECT_COLUMNS = [
   "tool_success",
   "tool_name",
   "tool_duration_ms",
+  "model",
   "cost_usd",
   "input_tokens",
   "output_tokens",
@@ -94,6 +95,9 @@ export function toTimelineEventFromClickHouseRow(row: ClickHouseAgentEventReadRo
   if (toolDurationMs !== undefined) {
     details["toolDurationMs"] = toolDurationMs;
   }
+  if (row.model !== null) {
+    details["model"] = row.model;
+  }
   const hookName = row.attributes["hook_name"];
   if (hookName !== undefined) {
     details["hookName"] = hookName;
@@ -109,6 +113,34 @@ export function toTimelineEventFromClickHouseRow(row: ClickHouseAgentEventReadRo
   const command = row.attributes["command"];
   if (command !== undefined) {
     details["command"] = command;
+  }
+  const filePath = row.attributes["file_path"];
+  if (filePath !== undefined) {
+    details["filePath"] = filePath;
+  }
+  const toolInput = row.attributes["tool_input"];
+  if (toolInput !== undefined) {
+    try {
+      details["toolInput"] = JSON.parse(toolInput);
+    } catch {
+      details["toolInput"] = toolInput;
+    }
+  }
+  const oldString = row.attributes["old_string"];
+  if (oldString !== undefined) {
+    details["oldString"] = oldString;
+  }
+  const newString = row.attributes["new_string"];
+  if (newString !== undefined) {
+    details["newString"] = newString;
+  }
+  const writeContent = row.attributes["write_content"];
+  if (writeContent !== undefined) {
+    details["writeContent"] = writeContent;
+  }
+  const responseText = row.attributes["response_text"];
+  if (responseText !== undefined) {
+    details["responseText"] = responseText;
   }
 
   return {

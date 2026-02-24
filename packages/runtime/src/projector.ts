@@ -74,11 +74,38 @@ function timelineContainsEvent(trace: AgentSessionTrace, eventId: string): boole
   return trace.timeline.some((event) => event.id === eventId);
 }
 
+function addCamelAlias(target: Record<string, unknown>, snakeKey: string, camelKey: string): void {
+  if (target[snakeKey] !== undefined && target[camelKey] === undefined) {
+    target[camelKey] = target[snakeKey];
+  }
+}
+
+function buildNormalizedDetails(payload: unknown): Readonly<Record<string, unknown>> | undefined {
+  const record = asRecord(payload);
+  if (record === undefined) {
+    return undefined;
+  }
+
+  const normalized: Record<string, unknown> = { ...record };
+  addCamelAlias(normalized, "tool_name", "toolName");
+  addCamelAlias(normalized, "tool_input", "toolInput");
+  addCamelAlias(normalized, "tool_response", "toolResponse");
+  addCamelAlias(normalized, "tool_duration_ms", "toolDurationMs");
+  addCamelAlias(normalized, "prompt_text", "promptText");
+  addCamelAlias(normalized, "hook_event_name", "hookEventName");
+  addCamelAlias(normalized, "tool_use_id", "toolUseId");
+  addCamelAlias(normalized, "last_assistant_message", "lastAssistantMessage");
+  addCamelAlias(normalized, "response_text", "responseText");
+  addCamelAlias(normalized, "file_path", "filePath");
+  return normalized;
+}
+
 function toTimelineEvent(envelope: RuntimeEnvelope): TimelineEvent {
   const payload = asRecord(envelope.payload);
   const inputTokens = readNumber(payload, ["input_tokens", "inputTokens"]);
   const outputTokens = readNumber(payload, ["output_tokens", "outputTokens"]);
   const costUsd = readNumber(payload, ["cost_usd", "costUsd"]);
+  const details = buildNormalizedDetails(envelope.payload);
 
   return {
     id: envelope.eventId,
@@ -94,7 +121,7 @@ function toTimelineEvent(envelope: RuntimeEnvelope): TimelineEvent {
           }
         }
       : {}),
-    details: envelope.payload
+    ...(details !== undefined ? { details } : {})
   };
 }
 

@@ -171,7 +171,9 @@ function parseReplayEvent(value: unknown): UiSessionReplayEvent | undefined {
     ...(toolDurationMs !== undefined ? { toolDurationMs } : {}),
     ...(inputTokens !== undefined ? { inputTokens } : {}),
     ...(outputTokens !== undefined ? { outputTokens } : {}),
-    ...(detail !== undefined ? { detail } : {})
+    ...(detail !== undefined ? { detail } : {}),
+    ...(details !== undefined ? { details } : {}),
+    ...(tokens !== undefined ? { tokens } : {})
   };
 }
 
