@@ -1,32 +1,41 @@
 services:
   dashboard:
-    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      HOST_UID: "${UID:-1000}"
+      HOST_GID: "${GID:-1000}"
     volumes:
       - ..:/app
       - dashboard_node_modules:/app/node_modules
     command: >
       bash -lc "npm ci --include=dev &&
       npm run --workspace @agent-trace/dashboard build:web &&
+      chown -R \"$$HOST_UID:$$HOST_GID\" /app/packages/dashboard/.next 2>/dev/null || true &&
       npm run --workspace @agent-trace/dashboard start:web -- --hostname 0.0.0.0 --port 3100"
 
   collector:
-    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      HOST_UID: "${UID:-1000}"
+      HOST_GID: "${GID:-1000}"
     volumes:
       - ..:/app
       - collector_node_modules:/app/node_modules
     command: >
       bash -lc "npm ci --include=dev &&
       npm run --workspace @agent-trace/runtime build &&
+      find /app/packages -maxdepth 2 -type d -name dist -exec chown -R \"$$HOST_UID:$$HOST_GID\" {} + 2>/dev/null || true &&
       node packages/runtime/dist/src/cli.js"
 
   api:
-    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      HOST_UID: "${UID:-1000}"
+      HOST_GID: "${GID:-1000}"
     volumes:
       - ..:/app
       - api_node_modules:/app/node_modules
     command: >
       bash -lc "npm ci --include=dev &&
       npm run --workspace @agent-trace/runtime build &&
+      find /app/packages -maxdepth 2 -type d -name dist -exec chown -R \"$$HOST_UID:$$HOST_GID\" {} + 2>/dev/null || true &&
       node packages/runtime/dist/src/cli.js"
 
 volumes:
