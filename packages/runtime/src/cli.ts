@@ -18,6 +18,23 @@ function readNumberEnv(name: string, fallback: number): number {
   return parsed;
 }
 
+function readBooleanEnv(name: string, fallback: boolean): boolean {
+  const raw = process.env[name];
+  if (raw === undefined) {
+    return fallback;
+  }
+
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === "1" || normalized === "true") {
+    return true;
+  }
+  if (normalized === "0" || normalized === "false") {
+    return false;
+  }
+
+  return fallback;
+}
+
 type RuntimeServiceRole = "all" | "collector" | "api";
 
 function readServiceRoleEnv(name: string): RuntimeServiceRole {
@@ -36,6 +53,7 @@ async function main(): Promise<void> {
   const enableCollectorServer = serviceRole !== "api";
   const enableApiServer = serviceRole !== "collector";
   const enableOtelReceiver = serviceRole !== "api";
+  const runMigrations = readBooleanEnv("RUNTIME_RUN_MIGRATIONS", true);
   const startedAtMs = Date.now();
 
   const dbConfig = parseRuntimeDatabaseConfigFromEnv(process.env as Record<string, string | undefined>);
@@ -59,11 +77,13 @@ async function main(): Promise<void> {
       close: async (): Promise<void> => Promise.resolve()
     };
   } else {
-    const migrationResult = await runRuntimeDatabaseMigrations(dbConfig);
-    migrationSummary = {
-      clickHouseStatements: migrationResult.clickHouse.executedStatements,
-      postgresStatements: migrationResult.postgres.executedStatements
-    };
+    if (runMigrations) {
+      const migrationResult = await runRuntimeDatabaseMigrations(dbConfig);
+      migrationSummary = {
+        clickHouseStatements: migrationResult.clickHouse.executedStatements,
+        postgresStatements: migrationResult.postgres.executedStatements
+      };
+    }
 
     const dbRuntime = createDatabaseBackedRuntime({
       startedAtMs,

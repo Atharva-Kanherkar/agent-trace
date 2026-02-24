@@ -8,10 +8,10 @@ CREATE TABLE IF NOT EXISTS agent_events
   user_id String,
   source LowCardinality(String),
   agent_type LowCardinality(String),
-  tool_name Nullable(LowCardinality(String)),
+  tool_name LowCardinality(Nullable(String)),
   tool_success Nullable(UInt8),
   tool_duration_ms Nullable(Int64),
-  model Nullable(LowCardinality(String)),
+  model LowCardinality(Nullable(String)),
   cost_usd Nullable(Decimal64(10)),
   input_tokens Nullable(Int64),
   output_tokens Nullable(Int64),
@@ -25,4 +25,3 @@ CREATE TABLE IF NOT EXISTS agent_events
 ENGINE = MergeTree()
 PARTITION BY toYYYYMM(event_timestamp)
 ORDER BY (session_id, event_timestamp, event_id);
-
