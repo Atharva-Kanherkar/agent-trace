@@ -1,6 +1,6 @@
 # agent-trace Status and Next Steps
 
-Updated: 2026-02-23
+Updated: 2026-02-24
 
 ## What is already complete
 
@@ -35,10 +35,15 @@ Updated: 2026-02-23
    - `init` generates Claude hook configuration artifact (`agent-trace-claude-hooks.json`).
    - `init` installs hook commands into Claude settings (`settings.local.json`) by default.
    - `status` reports both artifact presence and settings-hook installation state.
-5. `@agent-trace/dashboard` (core only)
+5. `@agent-trace/dashboard`
    - View-model mappers for sessions and timelines.
    - Cost and project summary analytics functions.
    - Standalone dashboard web server (`startDashboardServer`) with session bridge endpoint.
+   - Next.js dashboard shell (dark mode, Grafana-inspired visuals) with:
+     - live sessions
+     - daily cost chart
+     - session replay timeline panel
+     - typed API proxy routes
 6. `@agent-trace/platform`
    - Migration manifest and migration-file validator.
    - Typed migration runner (`runPlatformMigrations`) for ClickHouse + PostgreSQL SQL files.
@@ -84,7 +89,9 @@ Root commands pass for all implemented modules:
 
 ---
 
-## What is left (ordered)
+## What is left (post-v0.1 roadmap)
+
+MVP `v0.1` status: complete.
 
 ## Stage A: Runtime assembly (complete)
 
@@ -99,7 +106,7 @@ Feature set complete after Stage A:
 
 1. Local end-to-end demo flow without external DB.
 
-## Stage B: Persistence and projection (in progress)
+## Stage B: Persistence and projection (complete)
 
 1. ClickHouse writer implementation:
    - Events writer for `agent_events` complete.
@@ -157,7 +164,7 @@ Feature set complete after Stage C:
    - standalone dashboard web shell + API bridge endpoint complete.
    - dashboard sessions SSE bridge (`/api/sessions/stream`) complete.
    - dashboard session replay bridge (`/api/session/:id`) + timeline panel complete.
-   - full Next.js app shell and richer replay UI pending.
+   - full Next.js app shell and richer replay UI complete.
 2. Docker Compose service graph:
    - runtime + dashboard + ClickHouse + PostgreSQL compose foundation complete.
    - split collector/api/dashboard compose topology complete (runtime-backed services).
@@ -169,6 +176,20 @@ Feature set complete after Stage C:
 Feature set complete after Stage D:
 
 1. Self-hosted, one-command local deployment with replay + analytics.
+
+## Remaining roadmap after current implementation
+
+1. `v0.2` features:
+   - Prompt effectiveness scoring engine.
+   - Commit provenance chain through PR outcomes.
+   - Prompt library with template outcomes.
+   - PR outcome tracking and revert detection.
+   - Enhanced replay with richer file/diff views.
+2. `v0.3` features:
+   - Team analytics and org-level surfaces.
+   - Benchmarking opt-in flows.
+   - Enterprise controls (RBAC, SSO/SAML, audit logs, retention automation).
+   - Alerting and anomaly rules.
 
 ---
 

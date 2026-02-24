@@ -5,8 +5,8 @@ services:
       - dashboard_node_modules:/app/node_modules
     command: >
       bash -lc "npm ci &&
-      npm run --workspace @agent-trace/dashboard build &&
-      node packages/dashboard/dist/src/cli.js"
+      npm run --workspace @agent-trace/dashboard build:web &&
+      npm run --workspace @agent-trace/dashboard start:web -- --hostname 0.0.0.0 --port 3100"
 
   collector:
     volumes:

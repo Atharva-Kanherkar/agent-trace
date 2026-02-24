@@ -15,7 +15,7 @@
     "test:feature:collector": "npm run --workspace @agent-trace/collector typecheck && npm run --workspace @agent-trace/collector test:unit && npm run --workspace @agent-trace/collector test:manual",
     "test:feature:api": "npm run --workspace @agent-trace/api typecheck && npm run --workspace @agent-trace/api test:unit && npm run --workspace @agent-trace/api test:manual",
     "test:feature:cli": "npm run --workspace @agent-trace/cli typecheck && npm run --workspace @agent-trace/cli test:unit && npm run --workspace @agent-trace/cli test:manual",
-    "test:feature:dashboard": "npm run --workspace @agent-trace/dashboard typecheck && npm run --workspace @agent-trace/dashboard test:unit && npm run --workspace @agent-trace/dashboard test:manual",
+    "test:feature:dashboard": "npm run --workspace @agent-trace/dashboard typecheck && npm run --workspace @agent-trace/dashboard typecheck:web && npm run --workspace @agent-trace/dashboard test:unit && npm run --workspace @agent-trace/dashboard test:manual",
     "test:feature:platform": "npm run --workspace @agent-trace/platform typecheck && npm run --workspace @agent-trace/platform test:unit && npm run --workspace @agent-trace/platform test:manual",
     "test:feature:runtime": "npm run --workspace @agent-trace/runtime typecheck && npm run --workspace @agent-trace/runtime test:unit && npm run --workspace @agent-trace/runtime test:manual"
   },

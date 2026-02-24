@@ -35,6 +35,12 @@ curl -s http://127.0.0.1:8318/health
 curl -s http://127.0.0.1:3100/health
 ```
 
+Dashboard entrypoint (Next.js app):
+
+```bash
+open http://127.0.0.1:3100
+```
+
 ## Logs
 
 Production-like compose logs:

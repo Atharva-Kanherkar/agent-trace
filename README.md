@@ -26,7 +26,7 @@ Implemented modules:
 2. `@agent-trace/collector`
 3. `@agent-trace/api`
 4. `@agent-trace/cli`
-5. `@agent-trace/dashboard` (core mappers/analytics)
+5. `@agent-trace/dashboard` (Next.js dashboard + core mappers/analytics)
 6. `@agent-trace/platform` (migrations + validation)
 
 ## Validation
@@ -50,6 +50,11 @@ Current compose stack (split services + storage):
 5. Dashboard web server (`3100`)
 
 Collector/API services are runtime-backed with role mode (`RUNTIME_SERVICE_ROLE=collector|api`). In DB-backed mode they apply ClickHouse and PostgreSQL migrations on startup before exposing endpoints.
+
+Dashboard UI:
+
+1. Dark mode by default.
+2. Grafana-inspired visual language (cost trend panel, live session table, replay timeline).
 
 Run:
 

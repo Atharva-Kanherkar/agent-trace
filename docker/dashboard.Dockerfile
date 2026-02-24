@@ -9,8 +9,8 @@ COPY scripts ./scripts
 COPY packages ./packages
 
 RUN npm ci
-RUN npm run --workspace @agent-trace/dashboard build
+RUN npm run --workspace @agent-trace/dashboard build:web
 
 EXPOSE 3100
 
-CMD ["node", "packages/dashboard/dist/src/cli.js"]
+CMD ["npm", "run", "--workspace", "@agent-trace/dashboard", "start:web", "--", "--hostname", "0.0.0.0", "--port", "3100"]
