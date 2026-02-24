@@ -23,6 +23,11 @@ export function getMigrationManifest(): MigrationManifest {
         filePath: path.join(ROOT_DIR, "migrations/clickhouse/003_materialized_views.sql")
       },
       {
+        database: "clickhouse",
+        version: "004",
+        filePath: path.join(ROOT_DIR, "migrations/clickhouse/004_session_traces_commit_count.sql")
+      },
+      {
         database: "postgres",
         version: "001",
         filePath: path.join(ROOT_DIR, "migrations/postgres/001_users.sql")
