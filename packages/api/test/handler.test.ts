@@ -43,8 +43,8 @@ function createDependencies(): ApiHandlerDependencies {
   };
 }
 
-test("GET /health returns api status payload", () => {
-  const response = handleApiRequest(
+test("GET /health returns api status payload", async () => {
+  const response = await handleApiRequest(
     {
       method: "GET",
       url: "/health"
@@ -62,8 +62,8 @@ test("GET /health returns api status payload", () => {
   }
 });
 
-test("GET /v1/sessions returns summary list with filters", () => {
-  const all = handleApiRequest(
+test("GET /v1/sessions returns summary list with filters", async () => {
+  const all = await handleApiRequest(
     {
       method: "GET",
       url: "/v1/sessions"
@@ -78,7 +78,7 @@ test("GET /v1/sessions returns summary list with filters", () => {
     assert.fail("expected session list payload");
   }
 
-  const filtered = handleApiRequest(
+  const filtered = await handleApiRequest(
     {
       method: "GET",
       url: "/v1/sessions?userId=user_001&repo=repo-a"
@@ -95,8 +95,8 @@ test("GET /v1/sessions returns summary list with filters", () => {
   }
 });
 
-test("GET /v1/sessions/:id and /timeline returns trace data", () => {
-  const detail = handleApiRequest(
+test("GET /v1/sessions/:id and /timeline returns trace data", async () => {
+  const detail = await handleApiRequest(
     {
       method: "GET",
       url: "/v1/sessions/sess_001"
@@ -112,7 +112,7 @@ test("GET /v1/sessions/:id and /timeline returns trace data", () => {
     assert.fail("expected session detail payload");
   }
 
-  const timeline = handleApiRequest(
+  const timeline = await handleApiRequest(
     {
       method: "GET",
       url: "/v1/sessions/sess_001/timeline"
@@ -129,8 +129,8 @@ test("GET /v1/sessions/:id and /timeline returns trace data", () => {
   }
 });
 
-test("GET /v1/analytics/cost/daily returns aggregated daily cost points", () => {
-  const response = handleApiRequest(
+test("GET /v1/analytics/cost/daily returns aggregated daily cost points", async () => {
+  const response = await handleApiRequest(
     {
       method: "GET",
       url: "/v1/analytics/cost/daily"
@@ -153,8 +153,8 @@ test("GET /v1/analytics/cost/daily returns aggregated daily cost points", () => 
   }
 });
 
-test("returns 404 for unknown routes and missing session", () => {
-  const missing = handleApiRequest(
+test("returns 404 for unknown routes and missing session", async () => {
+  const missing = await handleApiRequest(
     {
       method: "GET",
       url: "/v1/sessions/not-found"
@@ -169,7 +169,7 @@ test("returns 404 for unknown routes and missing session", () => {
     assert.fail("expected error payload");
   }
 
-  const unknown = handleApiRequest(
+  const unknown = await handleApiRequest(
     {
       method: "GET",
       url: "/v1/unknown"

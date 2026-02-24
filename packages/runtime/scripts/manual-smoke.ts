@@ -1,7 +1,7 @@
 import { createInMemoryRuntime } from "../src";
 import { createRuntimeEnvelope } from "../src/samples";
 
-function main(): void {
+async function main(): Promise<void> {
   const runtime = createInMemoryRuntime();
   const envelope = createRuntimeEnvelope({
     sessionId: "sess_runtime_smoke",
@@ -24,7 +24,7 @@ function main(): void {
     throw new Error("runtime smoke failed: collector did not accept envelope");
   }
 
-  const list = runtime.handleApiRaw({
+  const list = await runtime.handleApiRaw({
     method: "GET",
     url: "/v1/sessions"
   });
@@ -32,7 +32,7 @@ function main(): void {
     throw new Error("runtime smoke failed: expected session list payload");
   }
 
-  const detail = runtime.handleApiRaw({
+  const detail = await runtime.handleApiRaw({
     method: "GET",
     url: "/v1/sessions/sess_runtime_smoke"
   });
@@ -49,4 +49,7 @@ function main(): void {
   console.log(`persistedSessionRows=${snapshot.postgresSessionRows.length}`);
 }
 
-main();
+void main().catch((error: unknown) => {
+  process.stderr.write(`${String(error)}\n`);
+  process.exit(1);
+});

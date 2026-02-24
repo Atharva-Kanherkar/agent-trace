@@ -13,6 +13,7 @@ import type {
 import { InMemoryRuntimePersistence } from "./persistence";
 import type {
   InMemoryRuntimeOptions,
+  RuntimeDailyCostReader,
   RuntimeEnvelope,
   RuntimePersistence,
   RuntimeRequestHandlers,
@@ -57,6 +58,7 @@ export interface InMemoryRuntime extends RuntimeRequestHandlers {
   readonly collectorDependencies: CollectorHandlerDependencies<RuntimeEnvelope>;
   readonly collectorService: EnvelopeCollectorService;
   readonly persistence: RuntimePersistence;
+  readonly dailyCostReader?: RuntimeDailyCostReader;
 }
 
 async function projectAndPersistEvent(
@@ -77,11 +79,13 @@ export function createRuntimeOtelSink(runtime: InMemoryRuntime): OtelEventsSink 
 function resolveRuntimeOptions(input: number | InMemoryRuntimeOptions | undefined): {
   readonly startedAtMs: number;
   readonly persistence: RuntimePersistence;
+  readonly dailyCostReader: RuntimeDailyCostReader | undefined;
 } {
   if (typeof input === "number") {
     return {
       startedAtMs: input,
-      persistence: new InMemoryRuntimePersistence()
+      persistence: new InMemoryRuntimePersistence(),
+      dailyCostReader: undefined
     };
   }
 
@@ -89,7 +93,8 @@ function resolveRuntimeOptions(input: number | InMemoryRuntimeOptions | undefine
   const persistence = input?.persistence ?? new InMemoryRuntimePersistence();
   return {
     startedAtMs,
-    persistence
+    persistence,
+    dailyCostReader: input?.dailyCostReader
   };
 }
 
@@ -109,7 +114,8 @@ export function createInMemoryRuntime(input?: number | InMemoryRuntimeOptions): 
 
   const apiDependencies = {
     startedAtMs: options.startedAtMs,
-    repository: sessionRepository
+    repository: sessionRepository,
+    ...(options.dailyCostReader !== undefined ? { dailyCostReader: options.dailyCostReader } : {})
   } as const;
 
   return {
@@ -118,6 +124,7 @@ export function createInMemoryRuntime(input?: number | InMemoryRuntimeOptions): 
     collectorDependencies,
     collectorService,
     persistence,
+    ...(options.dailyCostReader !== undefined ? { dailyCostReader: options.dailyCostReader } : {}),
     handleCollectorRaw: collectorService.handleRaw,
     handleApiRaw: (request) => handleApiRawHttpRequest(request, apiDependencies)
   };
@@ -146,7 +153,8 @@ export async function startInMemoryRuntimeServers(
     ? http.createServer(
         createApiHttpHandler({
           startedAtMs: runtime.collectorDependencies.startedAtMs,
-          repository: runtime.sessionRepository
+          repository: runtime.sessionRepository,
+          ...(runtime.dailyCostReader !== undefined ? { dailyCostReader: runtime.dailyCostReader } : {})
         })
       )
     : undefined;
@@ -155,7 +163,7 @@ export async function startInMemoryRuntimeServers(
     if (enableOtelReceiver) {
       otelReceiver = await startOtelGrpcReceiver({
         address: otelGrpcAddress,
-        privacyTier: 1,
+        privacyTier: options.otelPrivacyTier ?? 2,
         sink: createRuntimeOtelSink(runtime)
       });
     }

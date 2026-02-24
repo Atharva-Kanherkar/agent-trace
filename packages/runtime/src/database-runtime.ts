@@ -2,6 +2,7 @@ import {
   createClickHouseSdkInsertClient,
   createPostgresPgPersistenceClient
 } from "../../platform/src/database-adapters";
+import { ClickHouseDailyCostReader } from "../../platform/src/clickhouse-daily-cost-reader";
 import { ClickHouseEventReader } from "../../platform/src/clickhouse-event-reader";
 import { ClickHouseSessionTraceReader } from "../../platform/src/clickhouse-session-trace-reader";
 import type { ClickHouseInsertClient, ClickHouseSessionTraceRow } from "../../platform/src/persistence-types";
@@ -34,6 +35,7 @@ function normalizeSyncIntervalMs(input: number | undefined): number {
 async function hydrateRuntimeFromClickHouse(
   runtime: InMemoryRuntime,
   clickHouseClient: RuntimeClosableClickHouseClient,
+  postgresClient: RuntimeClosablePostgresClient | undefined,
   limit: number | undefined,
   timelineEventLimit: number | undefined
 ): Promise<number> {
@@ -43,9 +45,27 @@ async function hydrateRuntimeFromClickHouse(
   const hydratedTraces = await Promise.all(
     traces.map(async (trace) => {
       const timeline = await eventReader.listTimelineBySessionId(trace.sessionId, timelineEventLimit);
+      let commits = trace.git.commits;
+      if (postgresClient?.listCommitsBySessionId !== undefined && commits.length === 0) {
+        try {
+          const rows = await postgresClient.listCommitsBySessionId(trace.sessionId);
+          commits = rows.map((row) => ({
+            sha: row.sha,
+            ...(row.prompt_id !== null ? { promptId: row.prompt_id } : {}),
+            ...(row.message !== null ? { message: row.message } : {}),
+            ...(row.committed_at !== null ? { committedAt: row.committed_at } : {})
+          }));
+        } catch {
+          // commit enrichment is best-effort
+        }
+      }
       return {
         ...trace,
-        timeline
+        timeline,
+        git: {
+          ...trace.git,
+          commits
+        }
       };
     })
   );
@@ -94,9 +114,12 @@ export function createDatabaseBackedRuntime(
     postgresSessionClient: postgresClient
   });
 
+  const dailyCostReader = new ClickHouseDailyCostReader(clickHouseClient);
+
   const runtime = createInMemoryRuntime({
     ...(options.startedAtMs !== undefined ? { startedAtMs: options.startedAtMs } : {}),
-    persistence
+    persistence,
+    dailyCostReader
   });
   const hydrationEnabled = options.hydrateFromClickHouse !== false;
   const syncIntervalMs = normalizeSyncIntervalMs(options.sessionTraceSyncIntervalMs);
@@ -111,6 +134,7 @@ export function createDatabaseBackedRuntime(
       return await hydrateRuntimeFromClickHouse(
         runtime,
         clickHouseClient,
+        postgresClient,
         options.bootstrapSessionTraceLimit,
         options.sessionTimelineEventLimit
       );

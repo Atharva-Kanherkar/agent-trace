@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 
 import type {
   UiCostDailyPoint,
+  UiSessionCommit,
   UiSessionReplay,
   UiSessionSummary
 } from "../src/next-types";
@@ -40,6 +41,14 @@ function readNumber(record: UnknownRecord, key: string): number | undefined {
     return value;
   }
   return undefined;
+}
+
+function readStringArray(record: UnknownRecord, key: string): readonly string[] {
+  const value = record[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is string => typeof item === "string" && item.length > 0);
 }
 
 function readNullableString(record: UnknownRecord, key: string): string | null | undefined {
@@ -113,6 +122,26 @@ function parseReplay(value: unknown): UiSessionReplay | undefined {
   }
 
   const endedAt = readString(record, "endedAt");
+  const gitRecord = asRecord(record["git"]);
+  const commitsRaw = gitRecord !== undefined && Array.isArray(gitRecord["commits"]) ? gitRecord["commits"] : [];
+  const commits: UiSessionCommit[] = commitsRaw
+    .map((entry) => {
+      const c = asRecord(entry);
+      if (c === undefined) {
+        return undefined;
+      }
+      const sha = readString(c, "sha");
+      if (sha === undefined) {
+        return undefined;
+      }
+      return {
+        sha,
+        ...(readString(c, "message") !== undefined ? { message: readString(c, "message") } : {}),
+        ...(readString(c, "promptId") !== undefined ? { promptId: readString(c, "promptId") } : {}),
+        ...(readString(c, "committedAt") !== undefined ? { committedAt: readString(c, "committedAt") } : {})
+      };
+    })
+    .filter((entry): entry is UiSessionCommit => entry !== undefined);
 
   return {
     sessionId,
@@ -121,8 +150,16 @@ function parseReplay(value: unknown): UiSessionReplay | undefined {
     metrics: {
       promptCount: readNumber(metrics, "promptCount") ?? 0,
       toolCallCount: readNumber(metrics, "toolCallCount") ?? 0,
-      totalCostUsd: readNumber(metrics, "totalCostUsd") ?? 0
+      totalCostUsd: readNumber(metrics, "totalCostUsd") ?? 0,
+      totalInputTokens: readNumber(metrics, "totalInputTokens") ?? 0,
+      totalOutputTokens: readNumber(metrics, "totalOutputTokens") ?? 0,
+      linesAdded: readNumber(metrics, "linesAdded") ?? 0,
+      linesRemoved: readNumber(metrics, "linesRemoved") ?? 0,
+      modelsUsed: readStringArray(metrics, "modelsUsed"),
+      toolsUsed: readStringArray(metrics, "toolsUsed"),
+      filesTouched: readStringArray(metrics, "filesTouched")
     },
+    commits,
     timeline: timelineRaw
       .map((entry) => {
         const event = asRecord(entry);
@@ -137,8 +174,12 @@ function parseReplay(value: unknown): UiSessionReplay | undefined {
         }
         const details = asRecord(event["details"]);
         const toolName = details === undefined ? undefined : readString(details, "toolName");
+        const toolDurationMs = details === undefined ? undefined : readNumber(details, "toolDurationMs");
         const detail =
           details === undefined ? undefined : readString(details, "promptText") ?? readString(details, "command");
+        const tokens = asRecord(event["tokens"]);
+        const inputTokens = tokens === undefined ? undefined : readNumber(tokens, "input");
+        const outputTokens = tokens === undefined ? undefined : readNumber(tokens, "output");
         return {
           id,
           type,
@@ -147,6 +188,9 @@ function parseReplay(value: unknown): UiSessionReplay | undefined {
           ...(readString(event, "status") !== undefined ? { status: readString(event, "status") } : {}),
           ...(readNumber(event, "costUsd") !== undefined ? { costUsd: readNumber(event, "costUsd") } : {}),
           ...(toolName !== undefined ? { toolName } : {}),
+          ...(toolDurationMs !== undefined ? { toolDurationMs } : {}),
+          ...(inputTokens !== undefined ? { inputTokens } : {}),
+          ...(outputTokens !== undefined ? { outputTokens } : {}),
           ...(detail !== undefined ? { detail } : {})
         };
       })
@@ -505,7 +549,60 @@ export function DashboardShell(props: DashboardShellProps): ReactElement {
                 <span className="timeline-meta-item">
                   Tools: <span className="badge">{String(sessionReplay.metrics.toolCallCount)}</span>
                 </span>
+                <span className="timeline-meta-item">
+                  Tokens: <span className="badge teal">
+                    {String(sessionReplay.metrics.totalInputTokens)} in / {String(sessionReplay.metrics.totalOutputTokens)} out
+                  </span>
+                </span>
+                {(sessionReplay.metrics.linesAdded > 0 || sessionReplay.metrics.linesRemoved > 0) && (
+                  <span className="timeline-meta-item">
+                    Lines: <span className="badge green">+{String(sessionReplay.metrics.linesAdded)}</span>
+                    {" "}<span className="badge red">-{String(sessionReplay.metrics.linesRemoved)}</span>
+                  </span>
+                )}
+                {sessionReplay.metrics.modelsUsed.length > 0 && (
+                  <span className="timeline-meta-item">
+                    Models: {sessionReplay.metrics.modelsUsed.join(", ")}
+                  </span>
+                )}
+                {sessionReplay.metrics.toolsUsed.length > 0 && (
+                  <span className="timeline-meta-item">
+                    Tool types: {sessionReplay.metrics.toolsUsed.join(", ")}
+                  </span>
+                )}
+                {sessionReplay.metrics.filesTouched.length > 0 && (
+                  <span className="timeline-meta-item">
+                    Files: {String(sessionReplay.metrics.filesTouched.length)} touched
+                  </span>
+                )}
               </div>
+              {sessionReplay.commits.length > 0 && (
+                <div style={{ marginBottom: "12px" }}>
+                  <h3 style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "6px" }}>
+                    Commits ({String(sessionReplay.commits.length)})
+                  </h3>
+                  <table className="timeline-table">
+                    <thead>
+                      <tr>
+                        <th>SHA</th>
+                        <th>Message</th>
+                        <th>Prompt ID</th>
+                        <th>Committed At</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sessionReplay.commits.map((commit) => (
+                        <tr key={commit.sha}>
+                          <td>{commit.sha.slice(0, 8)}</td>
+                          <td>{commit.message ?? "-"}</td>
+                          <td>{commit.promptId ?? "-"}</td>
+                          <td>{commit.committedAt !== undefined ? formatDate(commit.committedAt) : "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
               {sessionReplay.timeline.length === 0 ? (
                 <div className="empty-state">No timeline events in this session.</div>
               ) : (
@@ -516,7 +613,9 @@ export function DashboardShell(props: DashboardShellProps): ReactElement {
                       <th>Type</th>
                       <th>Tool</th>
                       <th>Status</th>
+                      <th>Duration</th>
                       <th>Cost</th>
+                      <th>Tokens</th>
                       <th>Prompt ID</th>
                       <th>Detail</th>
                     </tr>
@@ -540,7 +639,13 @@ export function DashboardShell(props: DashboardShellProps): ReactElement {
                             {event.status ?? "-"}
                           </span>
                         </td>
+                        <td>{event.toolDurationMs === undefined ? "-" : `${String(event.toolDurationMs)}ms`}</td>
                         <td>{event.costUsd === undefined ? "-" : formatMoney(event.costUsd)}</td>
+                        <td>
+                          {event.inputTokens === undefined && event.outputTokens === undefined
+                            ? "-"
+                            : `${String(event.inputTokens ?? 0)} / ${String(event.outputTokens ?? 0)}`}
+                        </td>
                         <td>{event.promptId ?? "-"}</td>
                         <td>{event.detail === undefined ? "-" : shortenText(event.detail)}</td>
                       </tr>

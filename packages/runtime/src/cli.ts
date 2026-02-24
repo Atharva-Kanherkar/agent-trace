@@ -45,6 +45,17 @@ function readServiceRoleEnv(name: string): RuntimeServiceRole {
   return "all";
 }
 
+function readPrivacyTierEnv(name: string): 1 | 2 | 3 {
+  const raw = process.env[name];
+  if (raw === "1") {
+    return 1;
+  }
+  if (raw === "3") {
+    return 3;
+  }
+  return 2;
+}
+
 async function main(): Promise<void> {
   const host = process.env["RUNTIME_HOST"] ?? "127.0.0.1";
   const collectorPort = readNumberEnv("COLLECTOR_PORT", 8317);
@@ -53,6 +64,7 @@ async function main(): Promise<void> {
   const enableCollectorServer = serviceRole !== "api";
   const enableApiServer = serviceRole !== "collector";
   const enableOtelReceiver = serviceRole !== "api";
+  const otelPrivacyTier = readPrivacyTierEnv("OTEL_PRIVACY_TIER");
   const runMigrations = readBooleanEnv("RUNTIME_RUN_MIGRATIONS", true);
   const startedAtMs = Date.now();
 
@@ -106,7 +118,8 @@ async function main(): Promise<void> {
       apiPort,
       enableCollectorServer,
       enableApiServer,
-      enableOtelReceiver
+      enableOtelReceiver,
+      otelPrivacyTier
     });
   } catch (error: unknown) {
     await runtimeHandle.close();

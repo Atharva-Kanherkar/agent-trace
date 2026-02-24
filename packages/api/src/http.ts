@@ -69,10 +69,10 @@ function startSessionsSseStream(
   req.on("close", cleanup);
 }
 
-export function handleApiRawHttpRequest(
+export async function handleApiRawHttpRequest(
   request: ApiRawHttpRequest,
   dependencies: ApiHandlerDependencies
-): ApiResponse {
+): Promise<ApiResponse> {
   const method = normalizeMethod(request.method);
   if (method === undefined) {
     return {
@@ -104,14 +104,16 @@ export function createApiHttpHandler(
       return;
     }
 
-    const response = handleApiRawHttpRequest(
+    void handleApiRawHttpRequest(
       {
         method,
         url
       },
       dependencies
-    );
-
-    sendJson(res, response.statusCode, response.payload);
+    ).then((response) => {
+      sendJson(res, response.statusCode, response.payload);
+    }).catch(() => {
+      sendJson(res, 500, { status: "error", message: "internal server error" });
+    });
   };
 }

@@ -15,7 +15,7 @@ function createTempTranscriptFile(content: string): string {
   return filePath;
 }
 
-test("runtime wires collector ingest into api session query", () => {
+test("runtime wires collector ingest into api session query", async () => {
   const runtime = createInMemoryRuntime(Date.parse("2026-02-23T10:00:00.000Z"));
   const envelope = createRuntimeEnvelope({
     sessionId: "sess_runtime_test",
@@ -30,7 +30,7 @@ test("runtime wires collector ingest into api session query", () => {
   });
   assert.equal(ingest.statusCode, 202);
 
-  const list = runtime.handleApiRaw({
+  const list = await runtime.handleApiRaw({
     method: "GET",
     url: "/v1/sessions"
   });
@@ -43,7 +43,7 @@ test("runtime wires collector ingest into api session query", () => {
     assert.fail("expected session list payload");
   }
 
-  const detail = runtime.handleApiRaw({
+  const detail = await runtime.handleApiRaw({
     method: "GET",
     url: "/v1/sessions/sess_runtime_test"
   });
@@ -57,7 +57,7 @@ test("runtime wires collector ingest into api session query", () => {
   }
 });
 
-test("runtime collector dedupe prevents duplicate projections", () => {
+test("runtime collector dedupe prevents duplicate projections", async () => {
   const runtime = createInMemoryRuntime();
   const envelope = createRuntimeEnvelope({
     sessionId: "sess_runtime_dupe",
@@ -75,7 +75,7 @@ test("runtime collector dedupe prevents duplicate projections", () => {
     rawBody: JSON.stringify(envelope)
   });
 
-  const detail = runtime.handleApiRaw({
+  const detail = await runtime.handleApiRaw({
     method: "GET",
     url: "/v1/sessions/sess_runtime_dupe"
   });
@@ -205,7 +205,7 @@ test("runtime ingests transcript payload on stop hook and projects prompt/token 
       setTimeout(() => resolve(), 10);
     });
 
-    const detail = runtime.handleApiRaw({
+    const detail = await runtime.handleApiRaw({
       method: "GET",
       url: "/v1/sessions/sess_runtime_transcript"
     });

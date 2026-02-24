@@ -12,6 +12,7 @@ const EVENT_SELECT_COLUMNS = [
   "prompt_id",
   "tool_success",
   "tool_name",
+  "tool_duration_ms",
   "cost_usd",
   "input_tokens",
   "output_tokens",
@@ -88,6 +89,10 @@ export function toTimelineEventFromClickHouseRow(row: ClickHouseAgentEventReadRo
   const details: Record<string, unknown> = {};
   if (row.tool_name !== null) {
     details["toolName"] = row.tool_name;
+  }
+  const toolDurationMs = toNumber(row.tool_duration_ms);
+  if (toolDurationMs !== undefined) {
+    details["toolDurationMs"] = toolDurationMs;
   }
   const hookName = row.attributes["hook_name"];
   if (hookName !== undefined) {

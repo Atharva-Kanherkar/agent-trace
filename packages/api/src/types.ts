@@ -88,9 +88,14 @@ export interface ApiSessionRepository {
   upsert(trace: AgentSessionTrace): void;
 }
 
+export interface ApiDailyCostReader {
+  listDailyCosts(limit?: number): Promise<readonly ApiDailyCostPoint[]>;
+}
+
 export interface ApiHandlerDependencies {
   readonly startedAtMs: number;
   readonly repository: ApiSessionRepository;
+  readonly dailyCostReader?: ApiDailyCostReader;
 }
 
 export interface ApiServerStartOptions {

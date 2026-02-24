@@ -26,13 +26,30 @@ export interface UiSessionReplayEvent {
   readonly status?: string;
   readonly costUsd?: number;
   readonly toolName?: string;
+  readonly toolDurationMs?: number;
+  readonly inputTokens?: number;
+  readonly outputTokens?: number;
   readonly detail?: string;
+}
+
+export interface UiSessionCommit {
+  readonly sha: string;
+  readonly message?: string | undefined;
+  readonly promptId?: string | undefined;
+  readonly committedAt?: string | undefined;
 }
 
 export interface UiSessionReplayMetrics {
   readonly promptCount: number;
   readonly toolCallCount: number;
   readonly totalCostUsd: number;
+  readonly totalInputTokens: number;
+  readonly totalOutputTokens: number;
+  readonly linesAdded: number;
+  readonly linesRemoved: number;
+  readonly modelsUsed: readonly string[];
+  readonly toolsUsed: readonly string[];
+  readonly filesTouched: readonly string[];
 }
 
 export interface UiSessionReplay {
@@ -40,6 +57,7 @@ export interface UiSessionReplay {
   readonly startedAt: string;
   readonly endedAt?: string;
   readonly metrics: UiSessionReplayMetrics;
+  readonly commits: readonly UiSessionCommit[];
   readonly timeline: readonly UiSessionReplayEvent[];
 }
 

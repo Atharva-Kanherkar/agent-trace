@@ -29,6 +29,7 @@ function createRow(overrides: Partial<ClickHouseAgentEventReadRow> = {}): ClickH
     prompt_id: "prompt_event_reader_001",
     tool_success: 1,
     tool_name: "Read",
+    tool_duration_ms: null,
     cost_usd: "0.02",
     input_tokens: 120,
     output_tokens: 40,
@@ -57,7 +58,7 @@ test("toTimelineEventFromClickHouseRow maps clickhouse row into timeline event",
 
 test("ClickHouseEventReader listTimelineBySessionId builds query and maps rows", async () => {
   const expectedQuery = [
-    "SELECT event_id, event_type, event_timestamp, session_id, prompt_id, tool_success, tool_name, cost_usd, input_tokens, output_tokens, attributes",
+    "SELECT event_id, event_type, event_timestamp, session_id, prompt_id, tool_success, tool_name, tool_duration_ms, cost_usd, input_tokens, output_tokens, attributes",
     "FROM agent_events",
     "WHERE session_id = 'sess_''quoted'",
     "ORDER BY event_timestamp ASC",

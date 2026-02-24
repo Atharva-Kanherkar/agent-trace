@@ -19,7 +19,7 @@ export type RuntimeEnvelope = EventEnvelope<RuntimeEnvelopePayload>;
 
 export interface RuntimeRequestHandlers {
   handleCollectorRaw(request: CollectorRawHttpRequest): CollectorResponse;
-  handleApiRaw(request: ApiRawHttpRequest): ApiResponse;
+  handleApiRaw(request: ApiRawHttpRequest): Promise<ApiResponse>;
 }
 
 export interface RuntimeStartOptions {
@@ -30,6 +30,7 @@ export interface RuntimeStartOptions {
   readonly enableCollectorServer?: boolean;
   readonly enableApiServer?: boolean;
   readonly enableOtelReceiver?: boolean;
+  readonly otelPrivacyTier?: 1 | 2 | 3;
 }
 
 export interface RuntimeStartedServers {
@@ -61,6 +62,11 @@ export interface RuntimePersistenceClients {
 export interface InMemoryRuntimeOptions {
   readonly startedAtMs?: number;
   readonly persistence?: RuntimePersistence;
+  readonly dailyCostReader?: RuntimeDailyCostReader;
+}
+
+export interface RuntimeDailyCostReader {
+  listDailyCosts(limit?: number): Promise<readonly { date: string; totalCostUsd: number; sessionCount: number; promptCount: number; toolCallCount: number }[]>;
 }
 
 export interface RuntimeClosableClickHouseClient
@@ -71,6 +77,7 @@ export interface RuntimeClosableClickHouseClient
 
 export interface RuntimeClosablePostgresClient extends PostgresSessionPersistenceClient {
   close(): Promise<void>;
+  listCommitsBySessionId?(sessionId: string): Promise<readonly { sha: string; session_id: string; prompt_id: string | null; message: string | null; committed_at: string | null }[]>;
 }
 
 export interface RuntimeDatabaseClientFactories {

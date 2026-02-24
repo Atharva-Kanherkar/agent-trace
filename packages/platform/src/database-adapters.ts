@@ -7,6 +7,8 @@ import type {
   ClickHouseInsertClient,
   ClickHouseInsertRequest,
   ClickHouseQueryClient,
+  PostgresCommitReadRow,
+  PostgresCommitReader,
   PostgresConnectionOptions,
   PostgresInstanceSettingRow,
   PostgresPoolClient,
@@ -129,8 +131,15 @@ export class ClickHouseSdkInsertClient
   }
 }
 
+const SELECT_COMMITS_BY_SESSION_SQL = `
+SELECT sha, session_id, prompt_id, message, committed_at
+FROM commits
+WHERE session_id = $1
+ORDER BY committed_at ASC NULLS LAST
+`;
+
 export class PostgresPgPersistenceClient
-  implements PostgresSessionPersistenceClient, PostgresSettingsPersistenceClient
+  implements PostgresSessionPersistenceClient, PostgresSettingsPersistenceClient, PostgresCommitReader
 {
   private readonly pool: PostgresPoolClient;
 
@@ -183,6 +192,19 @@ export class PostgresPgPersistenceClient
         ]);
       }
     });
+  }
+
+  public async listCommitsBySessionId(sessionId: string): Promise<readonly PostgresCommitReadRow[]> {
+    const client = await this.pool.connect();
+    try {
+      const result = await client.query(SELECT_COMMITS_BY_SESSION_SQL, [sessionId]) as { rows?: readonly PostgresCommitReadRow[] };
+      if (result.rows === undefined || !Array.isArray(result.rows)) {
+        return [];
+      }
+      return result.rows;
+    } finally {
+      client.release();
+    }
   }
 
   public async upsertInstanceSettings(rows: readonly PostgresInstanceSettingRow[]): Promise<void> {

@@ -48,7 +48,7 @@ function toMetricDate(startedAt: string): string {
   return new Date(parsed).toISOString().slice(0, 10);
 }
 
-function buildDailyCostResponse(
+function buildDailyCostResponseFromTraces(
   dependencies: ApiHandlerDependencies,
   filters: SessionFilters
 ): ApiCostDailyResponse {
@@ -94,7 +94,22 @@ function buildDailyCostResponse(
   };
 }
 
-export function handleApiRequest(request: ApiRequest, dependencies: ApiHandlerDependencies): ApiResponse {
+async function buildDailyCostResponse(
+  dependencies: ApiHandlerDependencies,
+  filters: SessionFilters
+): Promise<ApiCostDailyResponse> {
+  if (dependencies.dailyCostReader !== undefined) {
+    try {
+      const points = await dependencies.dailyCostReader.listDailyCosts(30);
+      return { status: "ok", points };
+    } catch {
+      // fall back to in-memory aggregation
+    }
+  }
+  return buildDailyCostResponseFromTraces(dependencies, filters);
+}
+
+export async function handleApiRequest(request: ApiRequest, dependencies: ApiHandlerDependencies): Promise<ApiResponse> {
   const parsedUrl = new URL(request.url, "http://localhost");
   const pathname = parsedUrl.pathname;
 
@@ -124,7 +139,7 @@ export function handleApiRequest(request: ApiRequest, dependencies: ApiHandlerDe
     const filters = parseFilters(parsedUrl.searchParams);
     return {
       statusCode: 200,
-      payload: buildDailyCostResponse(dependencies, filters)
+      payload: await buildDailyCostResponse(dependencies, filters)
     };
   }
 

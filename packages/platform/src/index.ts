@@ -1,3 +1,4 @@
+export * from "./clickhouse-daily-cost-reader";
 export * from "./clickhouse-datetime";
 export * from "./clickhouse-event-reader";
 export * from "./clickhouse-event-writer";

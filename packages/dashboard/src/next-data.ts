@@ -1,6 +1,7 @@
 import type {
   UiCostDailyPoint,
   UiHomeLoadResult,
+  UiSessionCommit,
   UiSessionReplay,
   UiSessionReplayEvent,
   UiSessionSummary
@@ -40,6 +41,14 @@ function readNumber(record: UnknownRecord, key: string): number | undefined {
     return value;
   }
   return undefined;
+}
+
+function readStringArray(record: UnknownRecord, key: string): readonly string[] {
+  const value = record[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is string => typeof item === "string" && item.length > 0);
 }
 
 function normalizeApiBaseUrl(input: string): string {
@@ -110,6 +119,23 @@ function parseCostPoint(value: unknown): UiCostDailyPoint | undefined {
   };
 }
 
+function parseCommit(value: unknown): UiSessionCommit | undefined {
+  const record = asRecord(value);
+  if (record === undefined) {
+    return undefined;
+  }
+  const sha = readString(record, "sha");
+  if (sha === undefined) {
+    return undefined;
+  }
+  return {
+    sha,
+    ...(readString(record, "message") !== undefined ? { message: readString(record, "message") } : {}),
+    ...(readString(record, "promptId") !== undefined ? { promptId: readString(record, "promptId") } : {}),
+    ...(readString(record, "committedAt") !== undefined ? { committedAt: readString(record, "committedAt") } : {})
+  };
+}
+
 function parseReplayEvent(value: unknown): UiSessionReplayEvent | undefined {
   const record = asRecord(value);
   if (record === undefined) {
@@ -126,8 +152,12 @@ function parseReplayEvent(value: unknown): UiSessionReplayEvent | undefined {
   const promptId = readString(record, "promptId");
   const status = readString(record, "status");
   const costUsd = readNumber(record, "costUsd");
+  const tokens = asRecord(record["tokens"]);
+  const inputTokens = tokens === undefined ? undefined : readNumber(tokens, "input");
+  const outputTokens = tokens === undefined ? undefined : readNumber(tokens, "output");
   const details = asRecord(record["details"]);
   const toolName = details === undefined ? undefined : readString(details, "toolName");
+  const toolDurationMs = details === undefined ? undefined : readNumber(details, "toolDurationMs");
   const detail = details === undefined ? undefined : readString(details, "promptText") ?? readString(details, "command");
 
   return {
@@ -138,6 +168,9 @@ function parseReplayEvent(value: unknown): UiSessionReplayEvent | undefined {
     ...(status !== undefined ? { status } : {}),
     ...(costUsd !== undefined ? { costUsd } : {}),
     ...(toolName !== undefined ? { toolName } : {}),
+    ...(toolDurationMs !== undefined ? { toolDurationMs } : {}),
+    ...(inputTokens !== undefined ? { inputTokens } : {}),
+    ...(outputTokens !== undefined ? { outputTokens } : {}),
     ...(detail !== undefined ? { detail } : {})
   };
 }
@@ -210,6 +243,8 @@ export async function fetchSessionReplay(sessionId: string): Promise<UiSessionRe
   }
 
   const endedAt = readString(sessionRecord, "endedAt");
+  const gitRecord = asRecord(sessionRecord["git"]);
+  const commitsRaw = gitRecord !== undefined && Array.isArray(gitRecord["commits"]) ? gitRecord["commits"] : [];
 
   return {
     sessionId: parsedSessionId,
@@ -218,8 +253,18 @@ export async function fetchSessionReplay(sessionId: string): Promise<UiSessionRe
     metrics: {
       promptCount: readNumber(metricsRecord, "promptCount") ?? 0,
       toolCallCount: readNumber(metricsRecord, "toolCallCount") ?? 0,
-      totalCostUsd: readNumber(metricsRecord, "totalCostUsd") ?? 0
+      totalCostUsd: readNumber(metricsRecord, "totalCostUsd") ?? 0,
+      totalInputTokens: readNumber(metricsRecord, "totalInputTokens") ?? 0,
+      totalOutputTokens: readNumber(metricsRecord, "totalOutputTokens") ?? 0,
+      linesAdded: readNumber(metricsRecord, "linesAdded") ?? 0,
+      linesRemoved: readNumber(metricsRecord, "linesRemoved") ?? 0,
+      modelsUsed: readStringArray(metricsRecord, "modelsUsed"),
+      toolsUsed: readStringArray(metricsRecord, "toolsUsed"),
+      filesTouched: readStringArray(metricsRecord, "filesTouched")
     },
+    commits: commitsRaw.map((entry) => parseCommit(entry)).filter(
+      (entry): entry is UiSessionCommit => entry !== undefined
+    ),
     timeline: timelineRaw.map((entry) => parseReplayEvent(entry)).filter(
       (entry): entry is UiSessionReplayEvent => entry !== undefined
     )

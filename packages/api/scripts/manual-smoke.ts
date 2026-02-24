@@ -25,7 +25,7 @@ function createDependencies(): ApiHandlerDependencies {
 async function main(): Promise<void> {
   const dependencies = createDependencies();
 
-  const health = handleApiRequest(
+  const health = await handleApiRequest(
     {
       method: "GET",
       url: "/health"
@@ -33,7 +33,7 @@ async function main(): Promise<void> {
     dependencies
   );
 
-  const list = handleApiRequest(
+  const list = await handleApiRequest(
     {
       method: "GET",
       url: "/v1/sessions?userId=user_manual_001&repo=repo-manual"
@@ -41,7 +41,7 @@ async function main(): Promise<void> {
     dependencies
   );
 
-  const detail = handleApiRequest(
+  const detail = await handleApiRequest(
     {
       method: "GET",
       url: "/v1/sessions/sess_manual_001"
@@ -49,14 +49,14 @@ async function main(): Promise<void> {
     dependencies
   );
 
-  const timeline = handleApiRequest(
+  const timeline = await handleApiRequest(
     {
       method: "GET",
       url: "/v1/sessions/sess_manual_001/timeline"
     },
     dependencies
   );
-  const rawHealth = handleApiRawHttpRequest(
+  const rawHealth = await handleApiRawHttpRequest(
     {
       method: "GET",
       url: "/health"

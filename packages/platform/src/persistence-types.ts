@@ -35,6 +35,7 @@ export interface ClickHouseAgentEventReadRow {
   readonly prompt_id: string | null;
   readonly tool_success: number | null;
   readonly tool_name: string | null;
+  readonly tool_duration_ms: number | string | null;
   readonly cost_usd: number | string | null;
   readonly input_tokens: number | string | null;
   readonly output_tokens: number | string | null;
@@ -125,9 +126,21 @@ export interface PostgresInstanceSettingRow {
   readonly value: JsonValue;
 }
 
+export interface PostgresCommitReadRow {
+  readonly sha: string;
+  readonly session_id: string;
+  readonly prompt_id: string | null;
+  readonly message: string | null;
+  readonly committed_at: string | null;
+}
+
 export interface PostgresSessionPersistenceClient {
   upsertSessions(rows: readonly PostgresSessionRow[]): Promise<void>;
   upsertCommits(rows: readonly PostgresCommitRow[]): Promise<void>;
+}
+
+export interface PostgresCommitReader {
+  listCommitsBySessionId(sessionId: string): Promise<readonly PostgresCommitReadRow[]>;
 }
 
 export interface PostgresSettingsPersistenceClient {

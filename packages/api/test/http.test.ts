@@ -19,8 +19,8 @@ function createDependencies(): ApiHandlerDependencies {
   };
 }
 
-test("raw API adapter accepts GET requests", () => {
-  const response = handleApiRawHttpRequest(
+test("raw API adapter accepts GET requests", async () => {
+  const response = await handleApiRawHttpRequest(
     {
       method: "GET",
       url: "/v1/sessions"
@@ -32,8 +32,8 @@ test("raw API adapter accepts GET requests", () => {
   assert.equal(response.payload.status, "ok");
 });
 
-test("raw API adapter rejects unsupported methods", () => {
-  const response = handleApiRawHttpRequest(
+test("raw API adapter rejects unsupported methods", async () => {
+  const response = await handleApiRawHttpRequest(
     {
       method: "POST",
       url: "/v1/sessions"
@@ -47,4 +47,3 @@ test("raw API adapter rejects unsupported methods", () => {
     assert.equal(response.payload.message, "method not allowed");
   }
 });
-
