@@ -62,6 +62,7 @@ export interface ClickHouseSessionTraceRow {
   readonly models_used: readonly string[];
   readonly tools_used: readonly string[];
   readonly files_touched: readonly string[];
+  readonly commit_count: number;
   readonly updated_at: string;
 }
 

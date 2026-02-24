@@ -43,6 +43,7 @@ function createRow(overrides: Partial<ClickHouseSessionTraceRow> = {}): ClickHou
     models_used: ["claude-sonnet-4", "claude-sonnet-4"],
     tools_used: ["Read", "Edit", "Read"],
     files_touched: ["README.md", "src/runtime.ts", "README.md"],
+    commit_count: 0,
     updated_at: "2026-02-23T10:05:01.000Z",
     ...overrides
   };
@@ -74,7 +75,7 @@ test("toAgentSessionTraceFromClickHouseRow maps session trace row into AgentSess
 
 test("ClickHouseSessionTraceReader listLatest issues FINAL query and maps rows", async () => {
   const expectedQuery = [
-    "SELECT session_id, version, started_at, ended_at, user_id, git_repo, git_branch, prompt_count, tool_call_count, api_call_count, total_cost_usd, total_input_tokens, total_output_tokens, lines_added, lines_removed, models_used, tools_used, files_touched, updated_at",
+    "SELECT session_id, version, started_at, ended_at, user_id, git_repo, git_branch, prompt_count, tool_call_count, api_call_count, total_cost_usd, total_input_tokens, total_output_tokens, lines_added, lines_removed, models_used, tools_used, files_touched, commit_count, updated_at",
     "FROM session_traces",
     "FINAL",
     "ORDER BY updated_at DESC",
@@ -95,7 +96,7 @@ test("ClickHouseSessionTraceReader listLatest issues FINAL query and maps rows",
 
 test("ClickHouseSessionTraceReader getBySessionId escapes session id and returns undefined when missing", async () => {
   const expectedQuery = [
-    "SELECT session_id, version, started_at, ended_at, user_id, git_repo, git_branch, prompt_count, tool_call_count, api_call_count, total_cost_usd, total_input_tokens, total_output_tokens, lines_added, lines_removed, models_used, tools_used, files_touched, updated_at",
+    "SELECT session_id, version, started_at, ended_at, user_id, git_repo, git_branch, prompt_count, tool_call_count, api_call_count, total_cost_usd, total_input_tokens, total_output_tokens, lines_added, lines_removed, models_used, tools_used, files_touched, commit_count, updated_at",
     "FROM session_traces",
     "FINAL",
     "WHERE session_id = 'sess_''quoted'",

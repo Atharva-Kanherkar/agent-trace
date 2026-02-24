@@ -75,6 +75,7 @@ test("toClickHouseSessionTraceRow maps trace metrics and normalizes arrays", () 
   assert.deepEqual(row.models_used, ["claude-sonnet-4"]);
   assert.deepEqual(row.tools_used, ["Read", "Edit"]);
   assert.deepEqual(row.files_touched, ["README.md", "docs/HLD_LLD.md"]);
+  assert.equal(row.commit_count, 0);
   assert.equal(row.updated_at, "2026-02-23 10:05:01.000");
 });
 

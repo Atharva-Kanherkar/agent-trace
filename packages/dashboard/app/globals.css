@@ -82,7 +82,7 @@ body {
   margin-top: 14px;
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .metric-card {
@@ -109,6 +109,12 @@ body {
 .metric-value.green { color: var(--green); }
 .metric-value.cyan { color: var(--cyan); }
 .metric-value.orange { color: var(--orange); }
+
+.metric-detail {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
 
 .section-grid {
   margin-top: 14px;
@@ -192,6 +198,18 @@ body {
 .badge.red { border-color: rgba(248, 113, 113, 0.3); color: var(--red); }
 .badge.purple { border-color: rgba(192, 132, 252, 0.3); color: var(--purple); }
 .badge.cyan { border-color: rgba(34, 211, 238, 0.3); color: var(--cyan); }
+.badge.dim { border-color: var(--line); color: var(--text-dim); }
+
+.line-stat { font-size: 11px; font-variant-numeric: tabular-nums; }
+.line-stat.green { color: var(--green); margin-right: 4px; }
+.line-stat.red { color: var(--red); }
+
+.repo-cell {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .timeline-meta {
   display: flex;
@@ -621,10 +639,10 @@ body {
   .dashboard-shell { padding: 12px 8px 24px; }
   .metrics-grid { grid-template-columns: 1fr; }
 
-  .session-table th:nth-child(4),
-  .session-table td:nth-child(4),
   .session-table th:nth-child(5),
-  .session-table td:nth-child(5) { display: none; }
+  .session-table td:nth-child(5),
+  .session-table th:nth-child(7),
+  .session-table td:nth-child(7) { display: none; }
 
   .event-row { grid-template-columns: 18px 1fr; }
   .event-meta { grid-column: 2; }

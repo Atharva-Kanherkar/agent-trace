@@ -73,6 +73,7 @@ export function toClickHouseSessionTraceRow(
     models_used: toUniqueStringArray(trace.metrics.modelsUsed),
     tools_used: toUniqueStringArray(trace.metrics.toolsUsed),
     files_touched: toUniqueStringArray(trace.metrics.filesTouched),
+    commit_count: toNonNegativeInteger(trace.git.commits.length),
     updated_at: toClickHouseDateTime64(updatedAt)
   };
 }

@@ -95,7 +95,10 @@ function parseSessionSummary(value: unknown): UiSessionSummary | undefined {
     endedAt,
     promptCount: readNumber(record, "promptCount") ?? 0,
     toolCallCount: readNumber(record, "toolCallCount") ?? 0,
-    totalCostUsd: readNumber(record, "totalCostUsd") ?? 0
+    totalCostUsd: readNumber(record, "totalCostUsd") ?? 0,
+    commitCount: readNumber(record, "commitCount") ?? 0,
+    linesAdded: readNumber(record, "linesAdded") ?? 0,
+    linesRemoved: readNumber(record, "linesRemoved") ?? 0
   };
 }
 

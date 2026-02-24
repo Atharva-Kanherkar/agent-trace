@@ -1,0 +1,1 @@
+ALTER TABLE session_traces ADD COLUMN IF NOT EXISTS commit_count UInt32 DEFAULT 0;

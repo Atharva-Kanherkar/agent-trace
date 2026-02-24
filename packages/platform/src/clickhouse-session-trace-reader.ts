@@ -26,6 +26,7 @@ const SESSION_TRACE_SELECT_COLUMNS = [
   "models_used",
   "tools_used",
   "files_touched",
+  "commit_count",
   "updated_at"
 ].join(", ");
 
@@ -80,6 +81,15 @@ function toActiveDurationMs(startedAt: string, endedAt: string | null): number {
   return Math.max(0, ended - started);
 }
 
+function buildPlaceholderCommits(count: number): readonly { readonly sha: string }[] {
+  if (count <= 0) return [];
+  const result: { readonly sha: string }[] = [];
+  for (let i = 0; i < count; i++) {
+    result.push({ sha: `placeholder_${String(i)}` });
+  }
+  return result;
+}
+
 function escapeSqlString(value: string): string {
   return value.replaceAll("'", "''");
 }
@@ -115,7 +125,7 @@ export function toAgentSessionTraceFromClickHouseRow(
       toolsUsed: toUniqueStrings(row.tools_used)
     },
     git: {
-      commits: [],
+      commits: buildPlaceholderCommits(toNonNegativeInteger(row.commit_count)),
       pullRequests: []
     }
   };

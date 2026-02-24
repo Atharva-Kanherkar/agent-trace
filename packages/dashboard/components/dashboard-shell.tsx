@@ -226,7 +226,10 @@ function parseSessionSummary(value: unknown): UiSessionSummary | undefined {
     startedAt, endedAt,
     promptCount: readNumber(record, "promptCount") ?? 0,
     toolCallCount: readNumber(record, "toolCallCount") ?? 0,
-    totalCostUsd: readNumber(record, "totalCostUsd") ?? 0
+    totalCostUsd: readNumber(record, "totalCostUsd") ?? 0,
+    commitCount: readNumber(record, "commitCount") ?? 0,
+    linesAdded: readNumber(record, "linesAdded") ?? 0,
+    linesRemoved: readNumber(record, "linesRemoved") ?? 0
   };
 }
 
@@ -717,6 +720,8 @@ export function DashboardShell(props: DashboardShellProps): ReactElement {
   const totalCost = useMemo(() => sessions.reduce((sum, s) => sum + s.totalCostUsd, 0), [sessions]);
   const promptCount = useMemo(() => sessions.reduce((sum, s) => sum + s.promptCount, 0), [sessions]);
   const toolCallCount = useMemo(() => sessions.reduce((sum, s) => sum + s.toolCallCount, 0), [sessions]);
+  const totalCommits = useMemo(() => sessions.reduce((sum, s) => sum + s.commitCount, 0), [sessions]);
+  const sessionsWithCommits = useMemo(() => sessions.filter((s) => s.commitCount > 0).length, [sessions]);
   const maxCostPoint = useMemo(() => Math.max(0.01, ...costPoints.map((p) => p.totalCostUsd)), [costPoints]);
   const promptGroups = useMemo(() => {
     if (sessionReplay === undefined) return undefined;
@@ -866,6 +871,11 @@ export function DashboardShell(props: DashboardShellProps): ReactElement {
           <div className="metric-label">Tool Calls</div>
           <div className="metric-value">{String(toolCallCount)}</div>
         </article>
+        <article className="metric-card">
+          <div className="metric-label">Commits</div>
+          <div className="metric-value green">{String(totalCommits)}</div>
+          <div className="metric-detail">{String(sessionsWithCommits)}/{String(sessions.length)} sessions produced commits</div>
+        </article>
       </section>
 
       <section className="section-grid">
@@ -886,11 +896,12 @@ export function DashboardShell(props: DashboardShellProps): ReactElement {
                 <thead>
                   <tr>
                     <th>Session</th>
-                    <th>User</th>
                     <th>Repo</th>
                     <th>Started</th>
-                    <th>Cost</th>
                     <th>Prompts</th>
+                    <th>Cost</th>
+                    <th>Commits</th>
+                    <th>Lines</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -900,12 +911,30 @@ export function DashboardShell(props: DashboardShellProps): ReactElement {
                       className={`session-row${session.sessionId === selectedSessionId ? " active" : ""}`}
                       onClick={() => setSelectedSessionId(session.sessionId)}
                     >
-                      <td>{session.sessionId.slice(0, 12)}</td>
-                      <td>{session.userId}</td>
-                      <td>{session.gitRepo ?? "-"}</td>
+                      <td>{session.sessionId.slice(0, 10)}</td>
+                      <td className="repo-cell">
+                        {session.gitRepo !== null
+                          ? session.gitBranch !== null
+                            ? `${session.gitRepo}/${session.gitBranch}`
+                            : session.gitRepo
+                          : "-"}
+                      </td>
                       <td>{formatDate(session.startedAt)}</td>
-                      <td>{formatMoneyShort(session.totalCostUsd)}</td>
                       <td>{String(session.promptCount)}</td>
+                      <td>{formatMoneyShort(session.totalCostUsd)}</td>
+                      <td>
+                        {session.commitCount > 0
+                          ? <span className="badge green">{String(session.commitCount)}</span>
+                          : <span className="badge dim">0</span>}
+                      </td>
+                      <td>
+                        {(session.linesAdded > 0 || session.linesRemoved > 0)
+                          ? <>
+                              <span className="line-stat green">+{String(session.linesAdded)}</span>
+                              <span className="line-stat red">-{String(session.linesRemoved)}</span>
+                            </>
+                          : <span style={{ color: "var(--text-dim)" }}>-</span>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

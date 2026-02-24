@@ -22,6 +22,9 @@ export interface ApiSessionSummary {
   readonly promptCount: number;
   readonly toolCallCount: number;
   readonly totalCostUsd: number;
+  readonly commitCount: number;
+  readonly linesAdded: number;
+  readonly linesRemoved: number;
 }
 
 export interface ApiHealthResponse {

@@ -11,7 +11,10 @@ export function toSessionSummary(trace: AgentSessionTrace): ApiSessionSummary {
     endedAt: trace.endedAt ?? null,
     promptCount: trace.metrics.promptCount,
     toolCallCount: trace.metrics.toolCallCount,
-    totalCostUsd: trace.metrics.totalCostUsd
+    totalCostUsd: trace.metrics.totalCostUsd,
+    commitCount: trace.git.commits.length,
+    linesAdded: trace.metrics.linesAdded,
+    linesRemoved: trace.metrics.linesRemoved
   };
 }
 
