@@ -135,13 +135,19 @@ function parseReplay(value: unknown): UiSessionReplay | undefined {
         if (id === undefined || type === undefined || timestamp === undefined) {
           return undefined;
         }
+        const details = asRecord(event["details"]);
+        const toolName = details === undefined ? undefined : readString(details, "toolName");
+        const detail =
+          details === undefined ? undefined : readString(details, "promptText") ?? readString(details, "command");
         return {
           id,
           type,
           timestamp,
           ...(readString(event, "promptId") !== undefined ? { promptId: readString(event, "promptId") } : {}),
           ...(readString(event, "status") !== undefined ? { status: readString(event, "status") } : {}),
-          ...(readNumber(event, "costUsd") !== undefined ? { costUsd: readNumber(event, "costUsd") } : {})
+          ...(readNumber(event, "costUsd") !== undefined ? { costUsd: readNumber(event, "costUsd") } : {}),
+          ...(toolName !== undefined ? { toolName } : {}),
+          ...(detail !== undefined ? { detail } : {})
         };
       })
       .filter((entry): entry is UiSessionReplay["timeline"][number] => entry !== undefined)
@@ -158,6 +164,13 @@ function formatDate(value: string): string {
     return value;
   }
   return new Date(parsed).toLocaleString();
+}
+
+function shortenText(value: string, maxLength = 80): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, maxLength - 1)}...`;
 }
 
 export function DashboardShell(props: DashboardShellProps): ReactElement {
@@ -501,9 +514,11 @@ export function DashboardShell(props: DashboardShellProps): ReactElement {
                     <tr>
                       <th>Timestamp</th>
                       <th>Type</th>
+                      <th>Tool</th>
                       <th>Status</th>
                       <th>Cost</th>
                       <th>Prompt ID</th>
+                      <th>Detail</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -511,10 +526,15 @@ export function DashboardShell(props: DashboardShellProps): ReactElement {
                       <tr key={event.id}>
                         <td>{formatDate(event.timestamp)}</td>
                         <td>{event.type}</td>
+                        <td>{event.toolName ?? "-"}</td>
                         <td>
                           <span
                             className={`badge ${
-                              event.status === "error" ? "red" : event.status === "ok" ? "green" : ""
+                              event.status === "error"
+                                ? "red"
+                                : event.status === "ok" || event.status === "success"
+                                  ? "green"
+                                  : ""
                             }`}
                           >
                             {event.status ?? "-"}
@@ -522,6 +542,7 @@ export function DashboardShell(props: DashboardShellProps): ReactElement {
                         </td>
                         <td>{event.costUsd === undefined ? "-" : formatMoney(event.costUsd)}</td>
                         <td>{event.promptId ?? "-"}</td>
+                        <td>{event.detail === undefined ? "-" : shortenText(event.detail)}</td>
                       </tr>
                     ))}
                   </tbody>

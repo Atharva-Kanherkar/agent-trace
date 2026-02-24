@@ -126,6 +126,9 @@ function parseReplayEvent(value: unknown): UiSessionReplayEvent | undefined {
   const promptId = readString(record, "promptId");
   const status = readString(record, "status");
   const costUsd = readNumber(record, "costUsd");
+  const details = asRecord(record["details"]);
+  const toolName = details === undefined ? undefined : readString(details, "toolName");
+  const detail = details === undefined ? undefined : readString(details, "promptText") ?? readString(details, "command");
 
   return {
     id,
@@ -133,7 +136,9 @@ function parseReplayEvent(value: unknown): UiSessionReplayEvent | undefined {
     timestamp,
     ...(promptId !== undefined ? { promptId } : {}),
     ...(status !== undefined ? { status } : {}),
-    ...(costUsd !== undefined ? { costUsd } : {})
+    ...(costUsd !== undefined ? { costUsd } : {}),
+    ...(toolName !== undefined ? { toolName } : {}),
+    ...(detail !== undefined ? { detail } : {})
   };
 }
 

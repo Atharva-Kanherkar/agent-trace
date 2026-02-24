@@ -97,6 +97,14 @@ export function toTimelineEventFromClickHouseRow(row: ClickHouseAgentEventReadRo
   if (sourceVersion !== undefined) {
     details["sourceVersion"] = sourceVersion;
   }
+  const promptText = row.attributes["prompt_text"];
+  if (promptText !== undefined) {
+    details["promptText"] = promptText;
+  }
+  const command = row.attributes["command"];
+  if (command !== undefined) {
+    details["command"] = command;
+  }
 
   return {
     id,

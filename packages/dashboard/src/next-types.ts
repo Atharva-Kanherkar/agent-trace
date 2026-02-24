@@ -25,6 +25,8 @@ export interface UiSessionReplayEvent {
   readonly promptId?: string;
   readonly status?: string;
   readonly costUsd?: number;
+  readonly toolName?: string;
+  readonly detail?: string;
 }
 
 export interface UiSessionReplayMetrics {

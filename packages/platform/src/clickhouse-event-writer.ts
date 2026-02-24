@@ -72,6 +72,7 @@ function pickStringArray(
 
 function buildAttributes(event: PlatformEventEnvelope): Readonly<Record<string, string>> {
   const attributes: Record<string, string> = {};
+  const payload = event.payload;
 
   if (event.attributes !== undefined) {
     Object.keys(event.attributes).forEach((key) => {
@@ -86,6 +87,16 @@ function buildAttributes(event: PlatformEventEnvelope): Readonly<Record<string, 
   attributes["event_id_raw"] = event.eventId;
   if (event.sourceVersion !== undefined) {
     attributes["source_version"] = event.sourceVersion;
+  }
+  if (event.privacyTier >= 2) {
+    const promptText = pickString(payload, "prompt_text", "promptText");
+    if (promptText !== undefined) {
+      attributes["prompt_text"] = promptText;
+    }
+    const command = pickString(payload, "command", "command");
+    if (command !== undefined) {
+      attributes["command"] = command;
+    }
   }
 
   return attributes;
