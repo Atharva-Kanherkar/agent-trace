@@ -11,6 +11,7 @@ import type {
   PostgresSessionPersistenceClient,
   PostgresSessionRow
 } from "../../platform/src/persistence-types";
+import { toDeterministicUuid } from "../../platform/src/clickhouse-uuid";
 import { createWriterBackedRuntimePersistence } from "../src/persistence";
 import { createInMemoryRuntime } from "../src/runtime";
 import { createRuntimeEnvelope } from "../src/samples";
@@ -104,7 +105,7 @@ test("createWriterBackedRuntimePersistence writes through provided clients", asy
   });
 
   assert.equal(clickHouseClient.requests.length, 1);
-  assert.equal(clickHouseClient.requests[0]?.rows[0]?.event_id, "evt_writer_backed");
+  assert.equal(clickHouseClient.requests[0]?.rows[0]?.event_id, toDeterministicUuid("evt_writer_backed"));
   assert.equal(clickHouseSessionTraceClient.requests.length, 1);
   assert.equal(clickHouseSessionTraceClient.requests[0]?.rows[0]?.session_id, "sess_writer_backed");
   assert.equal(postgresClient.sessionsRequests.length, 1);

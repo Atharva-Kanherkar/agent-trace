@@ -60,6 +60,8 @@ test("toClickHouseSessionTraceRow maps trace metrics and normalizes arrays", () 
 
   assert.equal(row.session_id, "sess_trace_001");
   assert.equal(row.version, 1);
+  assert.equal(row.started_at, "2026-02-23 10:00:00.000");
+  assert.equal(row.ended_at, "2026-02-23 10:05:00.000");
   assert.equal(row.user_id, "user_001");
   assert.equal(row.git_repo, "Atharva-Kanherkar/agent-trace");
   assert.equal(row.prompt_count, 4);
@@ -73,7 +75,7 @@ test("toClickHouseSessionTraceRow maps trace metrics and normalizes arrays", () 
   assert.deepEqual(row.models_used, ["claude-sonnet-4"]);
   assert.deepEqual(row.tools_used, ["Read", "Edit"]);
   assert.deepEqual(row.files_touched, ["README.md", "docs/HLD_LLD.md"]);
-  assert.equal(row.updated_at, "2026-02-23T10:05:01.000Z");
+  assert.equal(row.updated_at, "2026-02-23 10:05:01.000");
 });
 
 test("ClickHouseSessionTraceWriter writes mapped rows to configured table", async () => {
@@ -99,7 +101,7 @@ test("ClickHouseSessionTraceWriter writes mapped rows to configured table", asyn
   assert.equal(client.requests[0]?.rows.length, 2);
   assert.equal(client.requests[0]?.rows[0]?.version, 42);
   assert.equal(client.requests[0]?.rows[1]?.version, 43);
-  assert.equal(client.requests[0]?.rows[0]?.updated_at, "2026-02-23T10:05:01.000Z");
+  assert.equal(client.requests[0]?.rows[0]?.updated_at, "2026-02-23 10:05:01.000");
 });
 
 test("ClickHouseSessionTraceWriter skips insert when trace list is empty", async () => {

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+import { toDeterministicUuid } from "../../platform/src/clickhouse-uuid";
 import { createInMemoryRuntime } from "../src";
 import { createRuntimeEnvelope } from "../src/samples";
 
@@ -114,7 +115,7 @@ test("runtime persists accepted events into clickhouse and postgres snapshots", 
   assert.equal(snapshot.clickHouseSessionTraceRows.length, 1);
   assert.equal(snapshot.postgresSessionRows.length, 1);
   assert.equal(snapshot.postgresCommitRows.length, 1);
-  assert.equal(snapshot.clickHouseRows[0]?.event_id, "evt_runtime_persist_1");
+  assert.equal(snapshot.clickHouseRows[0]?.event_id, toDeterministicUuid("evt_runtime_persist_1"));
   assert.equal(snapshot.clickHouseSessionTraceRows[0]?.session_id, "sess_runtime_persist");
   assert.equal(snapshot.postgresSessionRows[0]?.session_id, "sess_runtime_persist");
   assert.equal(snapshot.postgresCommitRows[0]?.sha, "sha_runtime_persist_1");

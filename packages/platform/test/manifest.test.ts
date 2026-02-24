@@ -18,4 +18,3 @@ test("migration manifest validator succeeds for baseline files", () => {
   assert.equal(result.ok, true);
   assert.equal(result.checkedFiles, 6);
 });
-

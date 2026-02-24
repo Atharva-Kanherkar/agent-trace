@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { ClickHouseEventWriter, toClickHouseAgentEventRow } from "../src/clickhouse-event-writer";
+import { toDeterministicUuid } from "../src/clickhouse-uuid";
 import type {
   ClickHouseAgentEventRow,
   ClickHouseInsertRequest,
@@ -64,7 +65,8 @@ function createSampleEnvelope(
 test("toClickHouseAgentEventRow maps envelope payload fields to clickhouse row", () => {
   const row = toClickHouseAgentEventRow(createSampleEnvelope());
 
-  assert.equal(row.event_id, "evt_001");
+  assert.equal(row.event_id, toDeterministicUuid("evt_001"));
+  assert.equal(row.event_timestamp, "2026-02-23 10:00:00.000");
   assert.equal(row.session_id, "sess_001");
   assert.equal(row.prompt_id, "prompt_001");
   assert.equal(row.user_id, "user_001");
@@ -78,6 +80,7 @@ test("toClickHouseAgentEventRow maps envelope payload fields to clickhouse row",
   assert.deepEqual(row.files_changed, ["README.md", "packages/schema/src/types.ts"]);
   assert.equal(row.attributes["terminal"], "bash");
   assert.equal(row.attributes["privacy_tier"], "2");
+  assert.equal(row.attributes["event_id_raw"], "evt_001");
   assert.equal(row.attributes["source_version"], "agent-trace-cli-v0.1");
 });
 
@@ -116,7 +119,7 @@ test("ClickHouseEventWriter writes mapped rows to configured table", async () =>
   assert.equal(client.requests.length, 1);
   assert.equal(client.requests[0]?.table, "agent_events_test");
   assert.equal(client.requests[0]?.rows.length, 2);
-  assert.equal(client.requests[0]?.rows[1]?.event_id, "evt_002");
+  assert.equal(client.requests[0]?.rows[1]?.event_id, toDeterministicUuid("evt_002"));
 });
 
 test("ClickHouseEventWriter skips insert when event list is empty", async () => {

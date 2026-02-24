@@ -6,6 +6,8 @@ import type {
   PlatformEventEnvelope,
   PlatformEventPayload
 } from "./persistence-types";
+import { toClickHouseDateTime64 } from "./clickhouse-datetime";
+import { toDeterministicUuid } from "./clickhouse-uuid";
 
 const DEFAULT_TABLE_NAME = "agent_events";
 
@@ -81,6 +83,7 @@ function buildAttributes(event: PlatformEventEnvelope): Readonly<Record<string, 
   }
 
   attributes["privacy_tier"] = String(event.privacyTier);
+  attributes["event_id_raw"] = event.eventId;
   if (event.sourceVersion !== undefined) {
     attributes["source_version"] = event.sourceVersion;
   }
@@ -93,9 +96,9 @@ export function toClickHouseAgentEventRow(event: PlatformEventEnvelope): ClickHo
   const toolSuccess = pickBoolean(payload, "tool_success", "toolSuccess");
 
   return {
-    event_id: event.eventId,
+    event_id: toDeterministicUuid(event.eventId),
     event_type: event.eventType,
-    event_timestamp: event.eventTimestamp,
+    event_timestamp: toClickHouseDateTime64(event.eventTimestamp),
     session_id: event.sessionId,
     prompt_id: event.promptId ?? null,
     user_id: pickString(payload, "user_id", "userId") ?? "unknown_user",

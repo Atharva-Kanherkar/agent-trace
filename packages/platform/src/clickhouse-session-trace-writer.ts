@@ -5,6 +5,7 @@ import type {
   ClickHouseSessionTraceWriterOptions,
   ClickHouseWriteSummary
 } from "./persistence-types";
+import { toClickHouseDateTime64 } from "./clickhouse-datetime";
 
 const DEFAULT_TABLE_NAME = "session_traces";
 
@@ -56,8 +57,8 @@ export function toClickHouseSessionTraceRow(
   return {
     session_id: trace.sessionId,
     version: normalizeVersion(version),
-    started_at: trace.startedAt,
-    ended_at: trace.endedAt ?? null,
+    started_at: toClickHouseDateTime64(trace.startedAt),
+    ended_at: trace.endedAt === undefined ? null : toClickHouseDateTime64(trace.endedAt),
     user_id: trace.user.id,
     git_repo: trace.environment.gitRepo ?? null,
     git_branch: trace.environment.gitBranch ?? null,
@@ -72,7 +73,7 @@ export function toClickHouseSessionTraceRow(
     models_used: toUniqueStringArray(trace.metrics.modelsUsed),
     tools_used: toUniqueStringArray(trace.metrics.toolsUsed),
     files_touched: toUniqueStringArray(trace.metrics.filesTouched),
-    updated_at: updatedAt
+    updated_at: toClickHouseDateTime64(updatedAt)
   };
 }
 

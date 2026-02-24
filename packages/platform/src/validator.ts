@@ -9,8 +9,10 @@ function validateSqlContent(filePath: string, sql: string, errors: string[]): vo
   }
 
   const normalized = sql.toUpperCase();
-  if (!normalized.includes("CREATE TABLE")) {
-    errors.push(`${filePath}: expected at least one CREATE TABLE statement`);
+  const supportedDdlTokens = ["CREATE TABLE", "ALTER TABLE", "CREATE MATERIALIZED VIEW"];
+  const hasSupportedDdl = supportedDdlTokens.some((token) => normalized.includes(token));
+  if (!hasSupportedDdl) {
+    errors.push(`${filePath}: expected at least one supported DDL statement`);
   }
 }
 
@@ -61,4 +63,3 @@ export function validateMigrationManifest(manifest: MigrationManifest): Migratio
     errors: []
   };
 }
-
