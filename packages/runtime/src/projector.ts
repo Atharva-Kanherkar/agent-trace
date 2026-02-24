@@ -150,7 +150,13 @@ function updateDurationMs(startedAt: string, endedAt: string): number {
 
 function shouldMarkEnded(eventType: string): boolean {
   const normalized = eventType.toLowerCase();
-  return normalized === "session_end" || normalized === "stop" || normalized === "task_completed";
+  return (
+    normalized === "session_end" ||
+    normalized === "sessionend" ||
+    normalized === "stop" ||
+    normalized === "task_completed" ||
+    normalized === "taskcompleted"
+  );
 }
 
 function incrementMetricIfMatches(metric: number, eventType: string, match: readonly string[]): number {

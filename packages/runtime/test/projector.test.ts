@@ -52,3 +52,20 @@ test("projector increments metrics and avoids duplicate timeline events", () => 
   assert.ok(merged.metrics.modelsUsed.includes("claude-sonnet"));
 });
 
+test("projector marks session as ended for SessionEnd alias", () => {
+  const startEnvelope = createRuntimeEnvelope({
+    sessionId: "sess_alias_end_001",
+    eventId: "evt_alias_start_001",
+    eventType: "tool_result"
+  });
+  const started = projectEnvelopeToTrace(undefined, startEnvelope);
+
+  const endEnvelope = createRuntimeEnvelope({
+    sessionId: "sess_alias_end_001",
+    eventId: "evt_alias_end_001",
+    eventType: "SessionEnd"
+  });
+  const ended = projectEnvelopeToTrace(started, endEnvelope);
+
+  assert.equal(ended.endedAt, endEnvelope.eventTimestamp);
+});

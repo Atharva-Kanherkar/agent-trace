@@ -15,7 +15,8 @@ import type {
 
 const CONFIG_FILE_NAME = "agent-trace.json";
 const CLAUDE_HOOKS_FILE_NAME = "agent-trace-claude-hooks.json";
-const CLAUDE_SETTINGS_FILE_NAME = "settings.local.json";
+const CLAUDE_GLOBAL_SETTINGS_FILE_NAME = "settings.json";
+const CLAUDE_LOCAL_SETTINGS_FILE_NAME = "settings.local.json";
 
 function ensurePrivacyTier(value: unknown): value is 1 | 2 | 3 {
   return value === 1 || value === 2 || value === 3;
@@ -55,6 +56,11 @@ function parseConfig(raw: string): AgentTraceCliConfig | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isGlobalClaudeConfigDir(configDir: string): boolean {
+  const globalClaudeDir = path.join(os.homedir(), ".claude");
+  return path.resolve(configDir) === path.resolve(globalClaudeDir);
 }
 
 interface ReadSettingsResult {
@@ -178,7 +184,11 @@ export class FileCliConfigStore implements CliConfigStore {
   }
 
   public resolveClaudeSettingsPath(configDirOverride?: string): string {
-    return path.join(this.resolveConfigDir(configDirOverride), CLAUDE_SETTINGS_FILE_NAME);
+    const configDir = this.resolveConfigDir(configDirOverride);
+    const settingsFileName = isGlobalClaudeConfigDir(configDir)
+      ? CLAUDE_GLOBAL_SETTINGS_FILE_NAME
+      : CLAUDE_LOCAL_SETTINGS_FILE_NAME;
+    return path.join(configDir, settingsFileName);
   }
 
   public readConfig(configDirOverride?: string): AgentTraceCliConfig | undefined {

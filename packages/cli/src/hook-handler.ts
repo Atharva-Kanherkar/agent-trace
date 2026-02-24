@@ -101,12 +101,18 @@ function isGitBashPayload(payload: HookPayload): boolean {
 
 function isSessionEndEvent(payload: HookPayload): boolean {
   const eventType = pickEventType(payload).toLowerCase();
-  return eventType === "session_end" || eventType === "sessionend";
+  return (
+    eventType === "session_end" ||
+    eventType === "sessionend" ||
+    eventType === "stop" ||
+    eventType === "task_completed" ||
+    eventType === "taskcompleted"
+  );
 }
 
 function isSessionStartEvent(payload: HookPayload): boolean {
   const eventType = pickEventType(payload).toLowerCase();
-  return eventType === "session_start" || eventType === "sessionstart";
+  return eventType === "session_start" || eventType === "sessionstart" || eventType === "startup";
 }
 
 function shouldAttemptGitEnrichment(payload: HookPayload): boolean {
@@ -252,6 +258,22 @@ function pickEventType(payload: HookPayload): string {
   const type = payload["type"];
   if (typeof type === "string" && type.length > 0) {
     return type;
+  }
+  const hookEventNameSnake = payload["hook_event_name"];
+  if (typeof hookEventNameSnake === "string" && hookEventNameSnake.length > 0) {
+    return hookEventNameSnake;
+  }
+  const hookEventNameCamel = payload["hookEventName"];
+  if (typeof hookEventNameCamel === "string" && hookEventNameCamel.length > 0) {
+    return hookEventNameCamel;
+  }
+  const hookNameSnake = payload["hook_name"];
+  if (typeof hookNameSnake === "string" && hookNameSnake.length > 0) {
+    return hookNameSnake;
+  }
+  const hookNameCamel = payload["hookName"];
+  if (typeof hookNameCamel === "string" && hookNameCamel.length > 0) {
+    return hookNameCamel;
   }
   const hook = payload["hook"];
   if (typeof hook === "string" && hook.length > 0) {

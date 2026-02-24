@@ -33,7 +33,7 @@ Updated: 2026-02-24
    - Config file lifecycle in `~/.claude/agent-trace.json`.
    - Forward mode: `hook-handler --forward` posts to collector URL from config.
    - `init` generates Claude hook configuration artifact (`agent-trace-claude-hooks.json`).
-   - `init` installs hook commands into Claude settings (`settings.local.json`) by default.
+   - `init` installs hook commands into Claude settings (`settings.json` for user-level installs, `settings.local.json` for project-scoped config dirs).
    - `status` reports both artifact presence and settings-hook installation state.
 5. `@agent-trace/dashboard`
    - View-model mappers for sessions and timelines.

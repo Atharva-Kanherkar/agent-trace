@@ -25,7 +25,13 @@ function readString(record: Record<string, unknown>, keys: readonly string[]): s
 
 function shouldIngestTranscript(eventType: string): boolean {
   const normalized = eventType.toLowerCase();
-  return normalized === "session_end" || normalized === "stop" || normalized === "task_completed";
+  return (
+    normalized === "session_end" ||
+    normalized === "sessionend" ||
+    normalized === "stop" ||
+    normalized === "task_completed" ||
+    normalized === "taskcompleted"
+  );
 }
 
 function pickTranscriptPath(payload: TranscriptEventPayload): string | undefined {

@@ -90,6 +90,30 @@ test("transcript ingestion processor ignores non-session-end events", async () =
   fs.rmSync(path.dirname(transcriptPath), { recursive: true, force: true });
 });
 
+test("transcript ingestion processor accepts sessionend alias from hook payloads", async () => {
+  const transcriptPath = createTempTranscriptFile(
+    `${JSON.stringify({
+      session_id: "sess_transcript_alias",
+      event: "assistant_response",
+      timestamp: "2026-02-23T10:10:01.000Z"
+    })}\n`
+  );
+  const sink = new RecordingTranscriptSink();
+  const processor = createTranscriptIngestionProcessor({
+    sink
+  });
+
+  await processor.processAcceptedEvent(
+    createTranscriptTriggerEvent(transcriptPath, {
+      eventType: "SessionEnd"
+    })
+  );
+
+  assert.equal(sink.ingestedBatches.length, 1);
+  assert.equal(sink.ingestedBatches[0]?.length, 1);
+  fs.rmSync(path.dirname(transcriptPath), { recursive: true, force: true });
+});
+
 test("transcript ingestion processor reports parse errors and still forwards valid lines", async () => {
   const transcriptPath = createTempTranscriptFile(
     `not-json\n${JSON.stringify({

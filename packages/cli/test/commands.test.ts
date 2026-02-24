@@ -106,6 +106,16 @@ test("runInit skips settings installation when installHooks=false", () => {
   fs.rmSync(configDir, { recursive: true, force: true });
 });
 
+test("resolveClaudeSettingsPath uses settings.json for global ~/.claude and settings.local.json for project config dirs", () => {
+  const store = new FileCliConfigStore();
+
+  const globalSettingsPath = store.resolveClaudeSettingsPath(path.join(os.homedir(), ".claude"));
+  const projectSettingsPath = store.resolveClaudeSettingsPath(path.join(os.tmpdir(), "agent-trace-project-claude"));
+
+  assert.ok(globalSettingsPath.endsWith(path.join(".claude", "settings.json")));
+  assert.ok(projectSettingsPath.endsWith(path.join("agent-trace-project-claude", "settings.local.json")));
+});
+
 test("runHookHandler maps valid payload into event envelope", () => {
   const configDir = createTempConfigDir();
   const store = new FileCliConfigStore();
@@ -168,6 +178,23 @@ test("runHookHandler rejects invalid JSON and empty payload", () => {
     rawStdin: "   "
   });
   assert.equal(emptyPayload.ok, false);
+});
+
+test("runHookHandler uses hook_event_name when event and type are missing", () => {
+  const result = runHookHandler({
+    rawStdin: JSON.stringify({
+      hook_event_name: "Stop",
+      session_id: "sess_hook_event_name_001",
+      timestamp: "2026-02-24T05:50:00.000Z"
+    }),
+    nowIso: "2026-02-24T05:50:00.000Z"
+  });
+
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.envelope.eventType, "Stop");
+    assert.equal(result.envelope.attributes?.["hook_name"], "Stop");
+  }
 });
 
 class MockCollectorClient implements CollectorHttpClient {
