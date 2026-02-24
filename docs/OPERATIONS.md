@@ -41,6 +41,24 @@ Dashboard entrypoint (Next.js app):
 open http://127.0.0.1:3100
 ```
 
+## Claude Code integration
+
+Run CLI init once to install hooks and OTEL export env in `~/.claude/settings.json`:
+
+```bash
+cd /home/atharva/agent-trace
+npm run --workspace @agent-trace/cli build
+npm link --workspace @agent-trace/cli
+agent-trace init --collector-url http://127.0.0.1:8317/v1/hooks --privacy-tier 2
+agent-trace status
+```
+
+Important:
+
+- Fully quit and relaunch Claude Code after `agent-trace init` so OTEL env vars take effect.
+- `privacy-tier 1` captures metadata only (no prompt text).
+- `privacy-tier 2` enables prompt text + tool detail logging (`OTEL_LOG_USER_PROMPTS=1`, `OTEL_LOG_TOOL_DETAILS=1`).
+
 ## Logs
 
 Production-like compose logs:
