@@ -45,17 +45,21 @@ async function hydrateRuntimeFromClickHouse(
   const hydratedTraces = await Promise.all(
     traces.map(async (trace) => {
       const timeline = await eventReader.listTimelineBySessionId(trace.sessionId, timelineEventLimit);
-      let commits = trace.git.commits;
-      const hasRealCommits = commits.length > 0 && !commits.every((c) => c.sha.startsWith("placeholder_"));
-      if (postgresClient?.listCommitsBySessionId !== undefined && !hasRealCommits) {
+      let commits = trace.git.commits.filter((c) => !c.sha.startsWith("placeholder_"));
+      if (postgresClient?.listCommitsBySessionId !== undefined) {
         try {
           const rows = await postgresClient.listCommitsBySessionId(trace.sessionId);
-          commits = rows.map((row) => ({
-            sha: row.sha,
-            ...(row.prompt_id !== null ? { promptId: row.prompt_id } : {}),
-            ...(row.message !== null ? { message: row.message } : {}),
-            ...(row.committed_at !== null ? { committedAt: row.committed_at } : {})
-          }));
+          if (rows.length > 0) {
+            const pgCommits = rows.map((row) => ({
+              sha: row.sha,
+              ...(row.prompt_id !== null ? { promptId: row.prompt_id } : {}),
+              ...(row.message !== null ? { message: row.message } : {}),
+              ...(row.committed_at !== null ? { committedAt: row.committed_at } : {})
+            }));
+            const pgShas = new Set(pgCommits.map((c) => c.sha));
+            const extraCommits = commits.filter((c) => !pgShas.has(c.sha));
+            commits = [...pgCommits, ...extraCommits];
+          }
         } catch {
           // commit enrichment is best-effort
         }
