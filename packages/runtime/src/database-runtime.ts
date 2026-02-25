@@ -46,7 +46,8 @@ async function hydrateRuntimeFromClickHouse(
     traces.map(async (trace) => {
       const timeline = await eventReader.listTimelineBySessionId(trace.sessionId, timelineEventLimit);
       let commits = trace.git.commits;
-      if (postgresClient?.listCommitsBySessionId !== undefined && commits.length === 0) {
+      const hasRealCommits = commits.length > 0 && !commits.every((c) => c.sha.startsWith("placeholder_"));
+      if (postgresClient?.listCommitsBySessionId !== undefined && !hasRealCommits) {
         try {
           const rows = await postgresClient.listCommitsBySessionId(trace.sessionId);
           commits = rows.map((row) => ({
