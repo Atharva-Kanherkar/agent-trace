@@ -260,9 +260,11 @@ function parseReplay(value: unknown): UiSessionReplay | undefined {
 
   const endedAt = readString(record, "endedAt");
   const envRecord = asRecord(record["environment"]);
-  const gitBranch = envRecord !== undefined ? readString(envRecord, "gitBranch") : undefined;
+  const gitBranch = (envRecord !== undefined ? readString(envRecord, "gitBranch") : undefined) ?? readString(record, "gitBranch");
   const gitRecord = asRecord(record["git"]);
-  const commitsRaw = gitRecord !== undefined && Array.isArray(gitRecord["commits"]) ? gitRecord["commits"] : [];
+  const commitsRaw = gitRecord !== undefined && Array.isArray(gitRecord["commits"])
+    ? gitRecord["commits"]
+    : Array.isArray(record["commits"]) ? record["commits"] : [];
   const commits: UiSessionCommit[] = commitsRaw
     .map((entry) => {
       const c = asRecord(entry);
@@ -278,7 +280,9 @@ function parseReplay(value: unknown): UiSessionReplay | undefined {
     })
     .filter((entry): entry is UiSessionCommit => entry !== undefined);
 
-  const prsRaw = gitRecord !== undefined && Array.isArray(gitRecord["pullRequests"]) ? gitRecord["pullRequests"] : [];
+  const prsRaw = gitRecord !== undefined && Array.isArray(gitRecord["pullRequests"])
+    ? gitRecord["pullRequests"]
+    : Array.isArray(record["pullRequests"]) ? record["pullRequests"] : [];
   const pullRequests: UiSessionPullRequest[] = prsRaw
     .map((entry) => {
       const pr = asRecord(entry);

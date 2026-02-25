@@ -52,6 +52,73 @@ test("projector increments metrics and avoids duplicate timeline events", () => 
   assert.ok(merged.metrics.modelsUsed.includes("claude-sonnet"));
 });
 
+test("projector creates commit only when is_commit flag is set", () => {
+  const commitEnvelope = createRuntimeEnvelope({
+    sessionId: "sess_commit_001",
+    eventId: "evt_commit_001",
+    promptId: "prompt_commit_001",
+    eventType: "tool_result",
+    payload: {
+      tool_name: "Bash",
+      commit_sha: "abc123",
+      commit_message: "feat: add new feature",
+      is_commit: true,
+      lines_added: 15,
+      lines_removed: 3,
+      cost_usd: 0.05,
+      input_tokens: 50,
+      output_tokens: 10
+    }
+  });
+
+  const trace = projectEnvelopeToTrace(undefined, commitEnvelope);
+  assert.equal(trace.git.commits.length, 1);
+  assert.equal(trace.git.commits[0]?.sha, "abc123");
+  assert.equal(trace.git.commits[0]?.message, "feat: add new feature");
+  assert.equal(trace.git.commits[0]?.promptId, "prompt_commit_001");
+  assert.equal(trace.git.commits[0]?.linesAdded, 15);
+  assert.equal(trace.git.commits[0]?.linesRemoved, 3);
+});
+
+test("projector ignores commit_sha from session_end events without is_commit", () => {
+  const sessionEndEnvelope = createRuntimeEnvelope({
+    sessionId: "sess_no_commit_001",
+    eventId: "evt_end_001",
+    eventType: "session_end",
+    payload: {
+      commit_sha: "deadbeef",
+      lines_added: 20,
+      lines_removed: 5,
+      cost_usd: 0
+    }
+  });
+
+  const trace = projectEnvelopeToTrace(undefined, sessionEndEnvelope);
+  assert.equal(trace.git.commits.length, 0);
+});
+
+test("projector creates commit when commit_message is present for backward compatibility", () => {
+  const legacyEnvelope = createRuntimeEnvelope({
+    sessionId: "sess_legacy_001",
+    eventId: "evt_legacy_001",
+    promptId: "prompt_legacy_001",
+    eventType: "tool_result",
+    payload: {
+      tool_name: "Bash",
+      commit_sha: "legacy123",
+      commit_message: "fix: legacy commit",
+      cost_usd: 0.01,
+      input_tokens: 10,
+      output_tokens: 5
+    }
+  });
+
+  const trace = projectEnvelopeToTrace(undefined, legacyEnvelope);
+  assert.equal(trace.git.commits.length, 1);
+  assert.equal(trace.git.commits[0]?.sha, "legacy123");
+  assert.equal(trace.git.commits[0]?.message, "fix: legacy commit");
+});
+
 test("projector marks session as ended for SessionEnd alias", () => {
   const startEnvelope = createRuntimeEnvelope({
     sessionId: "sess_alias_end_001",

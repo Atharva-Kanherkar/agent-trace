@@ -77,7 +77,7 @@ export interface RuntimeClosableClickHouseClient
 
 export interface RuntimeClosablePostgresClient extends PostgresSessionPersistenceClient {
   close(): Promise<void>;
-  listCommitsBySessionId?(sessionId: string): Promise<readonly { sha: string; session_id: string; prompt_id: string | null; message: string | null; committed_at: string | null }[]>;
+  listCommitsBySessionId?(sessionId: string): Promise<readonly { sha: string; session_id: string; prompt_id: string | null; message: string | null; lines_added: number; lines_removed: number; committed_at: string | null }[]>;
 }
 
 export interface RuntimeDatabaseClientFactories {

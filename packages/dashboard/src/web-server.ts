@@ -5,6 +5,8 @@ import type {
   DashboardHealthResponse,
   DashboardReplayTimelineEvent,
   DashboardSessionReplay,
+  DashboardSessionReplayCommit,
+  DashboardSessionReplayPullRequest,
   DashboardSessionReplayProvider,
   DashboardSessionReplayResponse,
   DashboardServerHandle,
@@ -95,7 +97,10 @@ async function fetchSessionsFromApi(apiBaseUrl: string): Promise<readonly Dashbo
       endedAt: typeof row["endedAt"] === "string" ? row["endedAt"] : null,
       promptCount: typeof row["promptCount"] === "number" ? row["promptCount"] : 0,
       toolCallCount: typeof row["toolCallCount"] === "number" ? row["toolCallCount"] : 0,
-      totalCostUsd: typeof row["totalCostUsd"] === "number" ? row["totalCostUsd"] : 0
+      totalCostUsd: typeof row["totalCostUsd"] === "number" ? row["totalCostUsd"] : 0,
+      commitCount: typeof row["commitCount"] === "number" ? row["commitCount"] : 0,
+      linesAdded: typeof row["linesAdded"] === "number" ? row["linesAdded"] : 0,
+      linesRemoved: typeof row["linesRemoved"] === "number" ? row["linesRemoved"] : 0
     });
   });
 
@@ -169,6 +174,68 @@ async function fetchSessionReplayFromApi(
     (entry): entry is DashboardReplayTimelineEvent => entry !== undefined
   );
 
+  const envRaw = session["environment"];
+  const envRecord =
+    typeof envRaw === "object" && envRaw !== null && !Array.isArray(envRaw)
+      ? (envRaw as Record<string, unknown>)
+      : undefined;
+  const gitBranch = envRecord !== undefined && typeof envRecord["gitBranch"] === "string" ? envRecord["gitBranch"] : undefined;
+
+  const gitRaw = session["git"];
+  const gitRecord =
+    typeof gitRaw === "object" && gitRaw !== null && !Array.isArray(gitRaw)
+      ? (gitRaw as Record<string, unknown>)
+      : undefined;
+
+  const commits: DashboardSessionReplayCommit[] = [];
+  if (gitRecord !== undefined && Array.isArray(gitRecord["commits"])) {
+    for (const entry of gitRecord["commits"]) {
+      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) continue;
+      const c = entry as Record<string, unknown>;
+      if (typeof c["sha"] !== "string") continue;
+      commits.push({
+        sha: c["sha"],
+        ...(typeof c["message"] === "string" ? { message: c["message"] } : {}),
+        ...(typeof c["promptId"] === "string" ? { promptId: c["promptId"] } : {}),
+        ...(typeof c["committedAt"] === "string" ? { committedAt: c["committedAt"] } : {})
+      });
+    }
+  }
+
+  const pullRequests: DashboardSessionReplayPullRequest[] = [];
+  if (gitRecord !== undefined && Array.isArray(gitRecord["pullRequests"])) {
+    for (const entry of gitRecord["pullRequests"]) {
+      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) continue;
+      const pr = entry as Record<string, unknown>;
+      if (typeof pr["repo"] !== "string" || typeof pr["prNumber"] !== "number") continue;
+      pullRequests.push({
+        repo: pr["repo"],
+        prNumber: pr["prNumber"],
+        state: typeof pr["state"] === "string" ? pr["state"] : "open",
+        ...(typeof pr["url"] === "string" ? { url: pr["url"] } : {})
+      });
+    }
+  }
+
+  const modelsUsed: string[] = [];
+  if (Array.isArray(metrics["modelsUsed"])) {
+    for (const item of metrics["modelsUsed"]) {
+      if (typeof item === "string" && item.length > 0) modelsUsed.push(item);
+    }
+  }
+  const toolsUsed: string[] = [];
+  if (Array.isArray(metrics["toolsUsed"])) {
+    for (const item of metrics["toolsUsed"]) {
+      if (typeof item === "string" && item.length > 0) toolsUsed.push(item);
+    }
+  }
+  const filesTouched: string[] = [];
+  if (Array.isArray(metrics["filesTouched"])) {
+    for (const item of metrics["filesTouched"]) {
+      if (typeof item === "string" && item.length > 0) filesTouched.push(item);
+    }
+  }
+
   return {
     sessionId: sessionIdValue,
     startedAt,
@@ -176,8 +243,19 @@ async function fetchSessionReplayFromApi(
     metrics: {
       promptCount: typeof metrics["promptCount"] === "number" ? metrics["promptCount"] : 0,
       toolCallCount: typeof metrics["toolCallCount"] === "number" ? metrics["toolCallCount"] : 0,
-      totalCostUsd: typeof metrics["totalCostUsd"] === "number" ? metrics["totalCostUsd"] : 0
+      totalCostUsd: typeof metrics["totalCostUsd"] === "number" ? metrics["totalCostUsd"] : 0,
+      totalInputTokens: typeof metrics["totalInputTokens"] === "number" ? metrics["totalInputTokens"] : 0,
+      totalOutputTokens: typeof metrics["totalOutputTokens"] === "number" ? metrics["totalOutputTokens"] : 0,
+      linesAdded: typeof metrics["linesAdded"] === "number" ? metrics["linesAdded"] : 0,
+      linesRemoved: typeof metrics["linesRemoved"] === "number" ? metrics["linesRemoved"] : 0,
+      modelsUsed,
+      toolsUsed,
+      filesTouched
     },
+    ...(gitBranch !== undefined ? { environment: { gitBranch } } : {}),
+    ...(commits.length > 0 || pullRequests.length > 0
+      ? { git: { commits, pullRequests } }
+      : {}),
     timeline
   };
 }

@@ -18,7 +18,10 @@ test("startDashboardServer serves html, health, and sessions bridge", async () =
           endedAt: "2026-02-23T10:10:00.000Z",
           promptCount: 4,
           toolCallCount: 8,
-          totalCostUsd: 0.31
+          totalCostUsd: 0.31,
+          commitCount: 1,
+          linesAdded: 42,
+          linesRemoved: 5
         }
       ]
     },
@@ -34,7 +37,27 @@ test("startDashboardServer serves html, health, and sessions bridge", async () =
           metrics: {
             promptCount: 4,
             toolCallCount: 8,
-            totalCostUsd: 0.31
+            totalCostUsd: 0.31,
+            totalInputTokens: 1200,
+            totalOutputTokens: 800,
+            linesAdded: 42,
+            linesRemoved: 5,
+            modelsUsed: ["claude-sonnet-4-20250514"],
+            toolsUsed: ["Read", "Edit"],
+            filesTouched: ["src/index.ts"]
+          },
+          environment: {
+            gitBranch: "main"
+          },
+          git: {
+            commits: [
+              {
+                sha: "abc1234",
+                message: "feat: add dashboard",
+                committedAt: "2026-02-23T10:08:00.000Z"
+              }
+            ],
+            pullRequests: []
           },
           timeline: [
             {
@@ -73,11 +96,22 @@ test("startDashboardServer serves html, health, and sessions bridge", async () =
     assert.equal(sessionReplayResponse.status, 200);
     const sessionReplayPayload = (await sessionReplayResponse.json()) as {
       readonly status: string;
-      readonly session?: { readonly sessionId?: string; readonly timeline?: readonly unknown[] };
+      readonly session?: {
+        readonly sessionId?: string;
+        readonly timeline?: readonly unknown[];
+        readonly environment?: { readonly gitBranch?: string };
+        readonly git?: { readonly commits?: readonly { readonly sha?: string; readonly message?: string }[]; readonly pullRequests?: readonly unknown[] };
+        readonly metrics?: { readonly linesAdded?: number; readonly modelsUsed?: readonly string[] };
+      };
     };
     assert.equal(sessionReplayPayload.status, "ok");
     assert.equal(sessionReplayPayload.session?.sessionId, "sess_dashboard_001");
     assert.equal(Array.isArray(sessionReplayPayload.session?.timeline), true);
+    assert.equal(sessionReplayPayload.session?.environment?.gitBranch, "main");
+    assert.equal(sessionReplayPayload.session?.git?.commits?.[0]?.sha, "abc1234");
+    assert.equal(sessionReplayPayload.session?.git?.commits?.[0]?.message, "feat: add dashboard");
+    assert.equal(sessionReplayPayload.session?.metrics?.linesAdded, 42);
+    assert.deepEqual(sessionReplayPayload.session?.metrics?.modelsUsed, ["claude-sonnet-4-20250514"]);
 
     const streamResponse = await fetch(`http://${dashboard.address}/api/sessions/stream`);
     assert.equal(streamResponse.status, 200);

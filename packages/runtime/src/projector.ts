@@ -220,12 +220,21 @@ function toUpdatedTrace(existing: AgentSessionTrace, envelope: RuntimeEnvelope):
 
   const existingCommits = [...existing.git.commits];
   const commitSha = readString(payload, ["commit_sha", "commitSha"]);
-  if (commitSha !== undefined && !existingCommits.some((commit) => commit.sha === commitSha)) {
-    const commitMessage = readNonEmptyString(payload, ["commit_message", "commitMessage"]);
+  const isCommitEvent = payload !== undefined && payload["is_commit"] === true;
+  const commitMessage = readNonEmptyString(payload, ["commit_message", "commitMessage"]);
+  if (
+    commitSha !== undefined &&
+    (isCommitEvent || commitMessage !== undefined) &&
+    !existingCommits.some((commit) => commit.sha === commitSha)
+  ) {
+    const commitLinesAdded = readNumber(payload, ["lines_added", "linesAdded"]);
+    const commitLinesRemoved = readNumber(payload, ["lines_removed", "linesRemoved"]);
     existingCommits.push({
       sha: commitSha,
       ...(envelope.promptId !== undefined ? { promptId: envelope.promptId } : {}),
       ...(commitMessage !== undefined ? { message: commitMessage } : {}),
+      ...(commitLinesAdded !== undefined ? { linesAdded: commitLinesAdded } : {}),
+      ...(commitLinesRemoved !== undefined ? { linesRemoved: commitLinesRemoved } : {}),
       committedAt: envelope.eventTimestamp
     });
   }

@@ -14,6 +14,9 @@ export interface DashboardSessionSummary {
   readonly promptCount: number;
   readonly toolCallCount: number;
   readonly totalCostUsd: number;
+  readonly commitCount: number;
+  readonly linesAdded: number;
+  readonly linesRemoved: number;
 }
 
 export interface DashboardServerSessionsResponse {
@@ -36,6 +39,20 @@ export interface DashboardReplayTimelineEvent {
   readonly details?: Readonly<Record<string, unknown>>;
 }
 
+export interface DashboardSessionReplayCommit {
+  readonly sha: string;
+  readonly message?: string;
+  readonly promptId?: string;
+  readonly committedAt?: string;
+}
+
+export interface DashboardSessionReplayPullRequest {
+  readonly repo: string;
+  readonly prNumber: number;
+  readonly state: string;
+  readonly url?: string;
+}
+
 export interface DashboardSessionReplay {
   readonly sessionId: string;
   readonly startedAt: string;
@@ -44,6 +61,20 @@ export interface DashboardSessionReplay {
     readonly promptCount: number;
     readonly toolCallCount: number;
     readonly totalCostUsd: number;
+    readonly totalInputTokens: number;
+    readonly totalOutputTokens: number;
+    readonly linesAdded: number;
+    readonly linesRemoved: number;
+    readonly modelsUsed: readonly string[];
+    readonly toolsUsed: readonly string[];
+    readonly filesTouched: readonly string[];
+  };
+  readonly environment?: {
+    readonly gitBranch?: string;
+  };
+  readonly git?: {
+    readonly commits: readonly DashboardSessionReplayCommit[];
+    readonly pullRequests: readonly DashboardSessionReplayPullRequest[];
   };
   readonly timeline: readonly DashboardReplayTimelineEvent[];
 }

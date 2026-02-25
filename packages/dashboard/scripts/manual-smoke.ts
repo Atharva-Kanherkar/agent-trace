@@ -65,7 +65,10 @@ async function main(): Promise<void> {
           endedAt: null,
           promptCount: 1,
           toolCallCount: 2,
-          totalCostUsd: 0.42
+          totalCostUsd: 0.42,
+          commitCount: 0,
+          linesAdded: 0,
+          linesRemoved: 0
         }
       ]
     },
@@ -80,7 +83,14 @@ async function main(): Promise<void> {
           metrics: {
             promptCount: 1,
             toolCallCount: 2,
-            totalCostUsd: 0.42
+            totalCostUsd: 0.42,
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            linesAdded: 0,
+            linesRemoved: 0,
+            modelsUsed: [],
+            toolsUsed: [],
+            filesTouched: []
           },
           timeline: [
             {

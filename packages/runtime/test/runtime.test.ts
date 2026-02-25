@@ -129,7 +129,9 @@ test("runtime dedupe prevents duplicate persistence writes for same event id", (
     eventType: "tool_result",
     payload: {
       user_id: "user_runtime_persist_dupe",
-      commit_sha: "sha_runtime_persist_dupe"
+      commit_sha: "sha_runtime_persist_dupe",
+      is_commit: true,
+      commit_message: "fix: dupe test"
     }
   });
 

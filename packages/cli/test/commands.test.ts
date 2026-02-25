@@ -347,6 +347,7 @@ test("runHookHandler enriches git bash events with local git context", () => {
     assert.equal(payload["git_branch"], "feature/trace");
     assert.equal(payload["commit_sha"], "abc123def456");
     assert.equal(payload["commit_message"], "feat: trace enrich");
+    assert.equal(payload["is_commit"], true);
     assert.equal(payload["lines_added"], 9);
     assert.equal(payload["lines_removed"], 3);
     assert.deepEqual(payload["files_changed"], ["src/a.ts", "src/b.ts"]);
@@ -356,10 +357,190 @@ test("runHookHandler enriches git bash events with local git context", () => {
   assert.deepEqual(provider.lastRequest, {
     repositoryPath: "/tmp/repo",
     includeDiffStats: true,
-    diffSource: "head_commit"
+    diffSource: "head_commit",
+    includeCommitMessage: true
   });
 
   fs.rmSync(configDir, { recursive: true, force: true });
+});
+
+test("runHookHandler uses git log message when parseCommitMessage fails for heredoc format", () => {
+  const configDir = createTempConfigDir();
+  const store = new FileCliConfigStore();
+  runInit(
+    {
+      configDir,
+      privacyTier: 1,
+      nowIso: "2026-02-23T12:00:00.000Z"
+    },
+    store
+  );
+
+  const provider = new MockGitContextProvider({
+    branch: "feature/heredoc",
+    headSha: "deadbeef123",
+    commitMessage: "fix: handle edge case in parser\n\nCo-Authored-By: Claude <noreply@anthropic.com>",
+    linesAdded: 5,
+    linesRemoved: 2,
+    filesChanged: ["src/parser.ts"]
+  });
+
+  const result = runHookHandler(
+    {
+      rawStdin: JSON.stringify({
+        event: "tool_result",
+        session_id: "sess_heredoc_001",
+        prompt_id: "prompt_heredoc_001",
+        tool_name: "Bash",
+        command: "git commit -m \"$(cat <<'EOF'\nfix: handle edge case in parser\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\"",
+        project_path: "/tmp/repo"
+      }),
+      configDir,
+      nowIso: "2026-02-23T12:00:02.000Z"
+    },
+    store,
+    provider
+  );
+
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    const payload = result.envelope.payload as Record<string, unknown>;
+    assert.equal(payload["is_commit"], true);
+    assert.equal(payload["commit_sha"], "deadbeef123");
+    assert.equal(
+      payload["commit_message"],
+      "fix: handle edge case in parser\n\nCo-Authored-By: Claude <noreply@anthropic.com>"
+    );
+    assert.equal(payload["lines_added"], 5);
+    assert.equal(payload["lines_removed"], 2);
+  }
+
+  fs.rmSync(configDir, { recursive: true, force: true });
+});
+
+test("runHookHandler finds command nested in tool_input for Claude Code PostToolUse events", () => {
+  const configDir = createTempConfigDir();
+  const store = new FileCliConfigStore();
+  runInit(
+    {
+      configDir,
+      privacyTier: 1,
+      nowIso: "2026-02-23T12:00:00.000Z"
+    },
+    store
+  );
+
+  const provider = new MockGitContextProvider({
+    branch: "main",
+    headSha: "a8b3c4e123",
+    commitMessage: "test: add gibberish markdown file for testing",
+    linesAdded: 15,
+    linesRemoved: 0,
+    filesChanged: ["test-gibberish.md"]
+  });
+
+  const result = runHookHandler(
+    {
+      rawStdin: JSON.stringify({
+        hook: "PostToolUse",
+        session_id: "sess_tool_input_001",
+        prompt_id: "prompt_tool_input_001",
+        tool_name: "Bash",
+        tool_input: {
+          command: "git add test-gibberish.md && git commit -m \"$(cat <<'EOF'\ntest: add gibberish markdown file for testing\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n)\"",
+          description: "Stage and commit the test file"
+        },
+        tool_response: "[main a8b3c4e] test: add gibberish markdown file for testing\n 1 file changed, 15 insertions(+)\n create mode 100644 test-gibberish.md",
+        cwd: "/home/atharva/memory"
+      }),
+      configDir,
+      nowIso: "2026-02-23T12:00:02.000Z"
+    },
+    store,
+    provider
+  );
+
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    const payload = result.envelope.payload as Record<string, unknown>;
+    assert.equal(payload["is_commit"], true);
+    assert.equal(payload["commit_sha"], "a8b3c4e123");
+    assert.equal(payload["commit_message"], "test: add gibberish markdown file for testing");
+    assert.equal(payload["lines_added"], 15);
+    assert.equal(payload["lines_removed"], 0);
+    assert.equal(result.envelope.promptId, "prompt_tool_input_001");
+    assert.equal(result.envelope.attributes?.["git_enriched"], "1");
+  }
+
+  assert.deepEqual(provider.lastRequest, {
+    repositoryPath: "/home/atharva/memory",
+    includeDiffStats: true,
+    diffSource: "head_commit",
+    includeCommitMessage: true
+  });
+
+  fs.rmSync(configDir, { recursive: true, force: true });
+});
+
+test("runHookHandler does not set is_commit for session_end events", () => {
+  const provider = new MockGitContextProvider({
+    branch: "main",
+    headSha: "c0ffee999",
+    linesAdded: 10,
+    linesRemoved: 3,
+    filesChanged: ["src/app.ts"]
+  });
+
+  const result = runHookHandler(
+    {
+      rawStdin: JSON.stringify({
+        event: "session_end",
+        session_id: "sess_no_commit_001",
+        project_path: "/tmp/repo"
+      }),
+      nowIso: "2026-02-23T12:30:00.000Z"
+    },
+    new FileCliConfigStore(),
+    provider
+  );
+
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    const payload = result.envelope.payload as Record<string, unknown>;
+    assert.equal(payload["commit_sha"], "c0ffee999");
+    assert.equal(payload["is_commit"], undefined);
+  }
+});
+
+test("runHookHandler does not set is_commit for non-commit git commands", () => {
+  const provider = new MockGitContextProvider({
+    branch: "main",
+    headSha: "abc999def"
+  });
+
+  const result = runHookHandler(
+    {
+      rawStdin: JSON.stringify({
+        event: "tool_result",
+        session_id: "sess_git_status_001",
+        tool_name: "Bash",
+        command: "git status",
+        project_path: "/tmp/repo"
+      }),
+      nowIso: "2026-02-23T12:30:00.000Z"
+    },
+    new FileCliConfigStore(),
+    provider
+  );
+
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    const payload = result.envelope.payload as Record<string, unknown>;
+    assert.equal(payload["git_branch"], "main");
+    assert.equal(payload["commit_sha"], "abc999def");
+    assert.equal(payload["is_commit"], undefined);
+    assert.equal(payload["commit_message"], undefined);
+  }
 });
 
 test("runHookHandler enriches session_end events with working tree git stats", () => {

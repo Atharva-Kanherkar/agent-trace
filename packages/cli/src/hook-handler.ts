@@ -79,9 +79,28 @@ function readStringArray(record: Record<string, unknown>, key: string): readonly
   return output;
 }
 
+function readNestedString(record: Record<string, unknown>, path: readonly string[]): string | undefined {
+  let current: unknown = record;
+  for (const key of path) {
+    if (typeof current !== "object" || current === null || Array.isArray(current)) {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[key];
+  }
+  if (typeof current === "string" && current.length > 0) {
+    return current;
+  }
+  return undefined;
+}
+
 function pickCommand(payload: HookPayload): string | undefined {
   const record = payload as Record<string, unknown>;
-  return readString(record, "command") ?? readString(record, "bash_command") ?? readString(record, "bashCommand");
+  return (
+    readString(record, "command") ??
+    readString(record, "bash_command") ??
+    readString(record, "bashCommand") ??
+    readNestedString(record, ["tool_input", "command"])
+  );
 }
 
 function pickToolName(payload: HookPayload): string | undefined {
@@ -120,13 +139,21 @@ function shouldAttemptGitEnrichment(payload: HookPayload): boolean {
   return isGitBashPayload(payload) || isSessionStartEvent(payload) || isSessionEndEvent(payload);
 }
 
+function isGitCommitCommand(command: string): boolean {
+  return /\bgit\s+commit\b/.test(command);
+}
+
 function parseCommitMessage(command: string): string | undefined {
   const regex = /(?:^|\s)-m\s+["']([^"']+)["']/;
   const match = command.match(regex);
   if (match?.[1] === undefined || match[1].length === 0) {
     return undefined;
   }
-  return match[1];
+  const message = match[1];
+  if (message.startsWith("$(") || message.startsWith("`")) {
+    return undefined;
+  }
+  return message;
 }
 
 function extractPrUrl(payload: HookPayload): string | undefined {
@@ -267,6 +294,16 @@ function pickPromptId(payload: HookPayload): string | undefined {
   const fromCamel = payload["promptId"];
   if (typeof fromCamel === "string" && fromCamel.length > 0) {
     return fromCamel;
+  }
+
+  const fromMessageId = payload["message_id"];
+  if (typeof fromMessageId === "string" && fromMessageId.length > 0) {
+    return fromMessageId;
+  }
+
+  const fromMessageIdCamel = payload["messageId"];
+  if (typeof fromMessageIdCamel === "string" && fromMessageIdCamel.length > 0) {
+    return fromMessageIdCamel;
   }
 
   return undefined;
@@ -491,10 +528,14 @@ export class ShellHookGitContextProvider implements HookGitContextProvider {
           ? runGitCommand(["show", "--numstat", "--format="], request.repositoryPath)
           : undefined;
     const diffStats = diffStatsRaw === undefined ? undefined : parseNumstatOutput(diffStatsRaw);
+    const commitMessage = request.includeCommitMessage === true
+      ? runGitCommand(["log", "-1", "--format=%B"], request.repositoryPath)
+      : undefined;
 
     if (
       branch === undefined &&
       headSha === undefined &&
+      commitMessage === undefined &&
       diffStats?.linesAdded === undefined &&
       diffStats?.linesRemoved === undefined &&
       diffStats?.filesChanged === undefined
@@ -505,6 +546,7 @@ export class ShellHookGitContextProvider implements HookGitContextProvider {
     return {
       ...(branch !== undefined ? { branch } : {}),
       ...(headSha !== undefined ? { headSha } : {}),
+      ...(commitMessage !== undefined ? { commitMessage } : {}),
       ...(diffStats?.linesAdded !== undefined ? { linesAdded: diffStats.linesAdded } : {}),
       ...(diffStats?.linesRemoved !== undefined ? { linesRemoved: diffStats.linesRemoved } : {}),
       ...(diffStats?.filesChanged !== undefined ? { filesChanged: diffStats.filesChanged } : {})
@@ -534,14 +576,15 @@ function enrichHookPayloadWithGitContext(
   const command = pickCommand(payload);
   const sessionStartEvent = isSessionStartEvent(payload);
   const sessionEndEvent = isSessionEndEvent(payload);
-  const includeDiffStats =
-    (command !== undefined && command.includes(" commit ")) || sessionStartEvent || sessionEndEvent;
+  const isCommit = command !== undefined && isGitCommitCommand(command) && !sessionStartEvent && !sessionEndEvent;
+  const includeDiffStats = isCommit || sessionStartEvent || sessionEndEvent;
   const diffSource = sessionStartEvent || sessionEndEvent ? "working_tree" : "head_commit";
   const repositoryPath = pickRepositoryPath(payload);
   const sessionId = pickSessionId(payload);
   const contextRequest: HookGitContextRequest = {
     includeDiffStats,
     ...(includeDiffStats ? { diffSource } : {}),
+    ...(isCommit ? { includeCommitMessage: true } : {}),
     ...(repositoryPath !== undefined ? { repositoryPath } : {})
   };
   const gitContext = provider.readContext(contextRequest);
@@ -588,7 +631,13 @@ function enrichHookPayloadWithGitContext(
 
   const patch: Record<string, unknown> = {};
 
-  const commitMessage = command === undefined ? undefined : parseCommitMessage(command);
+  if (isCommit) {
+    patch["is_commit"] = true;
+  }
+
+  const commitMessageFromCommand = command === undefined ? undefined : parseCommitMessage(command);
+  const commitMessageFromGit = gitContext?.commitMessage;
+  const commitMessage = commitMessageFromCommand ?? commitMessageFromGit;
   const existingCommitMessage = readString(record, "commit_message") ?? readString(record, "commitMessage");
   if (existingCommitMessage === undefined && commitMessage !== undefined) {
     patch["commit_message"] = commitMessage;

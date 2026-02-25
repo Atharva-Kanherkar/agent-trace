@@ -133,6 +133,8 @@ export interface PostgresCommitReadRow {
   readonly session_id: string;
   readonly prompt_id: string | null;
   readonly message: string | null;
+  readonly lines_added: number;
+  readonly lines_removed: number;
   readonly committed_at: string | null;
 }
 

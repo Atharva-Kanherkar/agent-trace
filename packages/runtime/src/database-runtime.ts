@@ -54,6 +54,8 @@ async function hydrateRuntimeFromClickHouse(
               sha: row.sha,
               ...(row.prompt_id !== null ? { promptId: row.prompt_id } : {}),
               ...(row.message !== null ? { message: row.message } : {}),
+              ...(row.lines_added > 0 ? { linesAdded: row.lines_added } : {}),
+              ...(row.lines_removed > 0 ? { linesRemoved: row.lines_removed } : {}),
               ...(row.committed_at !== null ? { committedAt: row.committed_at } : {})
             }));
             const pgShas = new Set(pgCommits.map((c) => c.sha));

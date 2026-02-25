@@ -132,7 +132,7 @@ export class ClickHouseSdkInsertClient
 }
 
 const SELECT_COMMITS_BY_SESSION_SQL = `
-SELECT sha, session_id, prompt_id, message, committed_at
+SELECT sha, session_id, prompt_id, message, lines_added, lines_removed, committed_at
 FROM commits
 WHERE session_id = $1
 ORDER BY committed_at ASC NULLS LAST

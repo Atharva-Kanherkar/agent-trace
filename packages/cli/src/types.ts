@@ -126,11 +126,13 @@ export interface HookGitContextRequest {
   readonly repositoryPath?: string;
   readonly includeDiffStats: boolean;
   readonly diffSource?: "head_commit" | "working_tree";
+  readonly includeCommitMessage?: boolean;
 }
 
 export interface HookGitRepositoryState {
   readonly branch?: string;
   readonly headSha?: string;
+  readonly commitMessage?: string;
   readonly linesAdded?: number;
   readonly linesRemoved?: number;
   readonly filesChanged?: readonly string[];
