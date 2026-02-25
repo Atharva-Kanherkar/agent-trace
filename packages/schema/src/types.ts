@@ -79,6 +79,7 @@ export interface PullRequestInfo {
   readonly prNumber: number;
   readonly state: string;
   readonly mergedAt?: string;
+  readonly url?: string;
 }
 
 export interface SessionUser {

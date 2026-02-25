@@ -230,6 +230,22 @@ function toUpdatedTrace(existing: AgentSessionTrace, envelope: RuntimeEnvelope):
     });
   }
 
+  const existingPullRequests = [...existing.git.pullRequests];
+  const prUrl = readString(payload, ["pr_url", "prUrl"]);
+  const prRepo = readString(payload, ["pr_repo", "prRepo"]);
+  const prNumberRaw = readNumber(payload, ["pr_number", "prNumber"]);
+  if (prUrl !== undefined && prRepo !== undefined && prNumberRaw !== undefined) {
+    const alreadyTracked = existingPullRequests.some((pr) => pr.prNumber === prNumberRaw && pr.repo === prRepo);
+    if (!alreadyTracked) {
+      existingPullRequests.push({
+        repo: prRepo,
+        prNumber: prNumberRaw,
+        state: "open",
+        url: prUrl
+      });
+    }
+  }
+
   return {
     ...existing,
     ...(endedAt !== undefined ? { endedAt } : {}),
@@ -251,7 +267,8 @@ function toUpdatedTrace(existing: AgentSessionTrace, envelope: RuntimeEnvelope):
     },
     git: {
       ...existing.git,
-      commits: existingCommits
+      commits: existingCommits,
+      pullRequests: existingPullRequests
     }
   };
 }

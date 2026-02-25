@@ -57,12 +57,21 @@ export interface UiSessionReplayMetrics {
   readonly filesTouched: readonly string[];
 }
 
+export interface UiSessionPullRequest {
+  readonly repo: string;
+  readonly prNumber: number;
+  readonly state: string;
+  readonly url?: string | undefined;
+}
+
 export interface UiSessionReplay {
   readonly sessionId: string;
   readonly startedAt: string;
   readonly endedAt?: string;
+  readonly gitBranch?: string | undefined;
   readonly metrics: UiSessionReplayMetrics;
   readonly commits: readonly UiSessionCommit[];
+  readonly pullRequests: readonly UiSessionPullRequest[];
   readonly timeline: readonly UiSessionReplayEvent[];
 }
 

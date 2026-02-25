@@ -50,6 +50,7 @@ hljs.registerLanguage("toml", yaml);
 import type {
   UiCostDailyPoint,
   UiSessionCommit,
+  UiSessionPullRequest,
   UiSessionReplay,
   UiSessionReplayEvent,
   UiSessionSummary
@@ -69,6 +70,7 @@ interface PromptGroup {
   readonly promptText: string | undefined;
   readonly responseText: string | undefined;
   readonly toolEvents: readonly UiSessionReplayEvent[];
+  readonly commits: readonly UiSessionCommit[];
   readonly totalCostUsd: number;
   readonly totalToolCalls: number;
   readonly totalInputTokens: number;
@@ -257,6 +259,8 @@ function parseReplay(value: unknown): UiSessionReplay | undefined {
   if (sessionId === undefined || startedAt === undefined || metrics === undefined || !Array.isArray(timelineRaw)) return undefined;
 
   const endedAt = readString(record, "endedAt");
+  const envRecord = asRecord(record["environment"]);
+  const gitBranch = envRecord !== undefined ? readString(envRecord, "gitBranch") : undefined;
   const gitRecord = asRecord(record["git"]);
   const commitsRaw = gitRecord !== undefined && Array.isArray(gitRecord["commits"]) ? gitRecord["commits"] : [];
   const commits: UiSessionCommit[] = commitsRaw
@@ -264,7 +268,7 @@ function parseReplay(value: unknown): UiSessionReplay | undefined {
       const c = asRecord(entry);
       if (c === undefined) return undefined;
       const sha = readString(c, "sha");
-      if (sha === undefined) return undefined;
+      if (sha === undefined || sha.startsWith("placeholder_")) return undefined;
       return {
         sha,
         ...(readString(c, "message") !== undefined ? { message: readString(c, "message") } : {}),
@@ -274,9 +278,27 @@ function parseReplay(value: unknown): UiSessionReplay | undefined {
     })
     .filter((entry): entry is UiSessionCommit => entry !== undefined);
 
+  const prsRaw = gitRecord !== undefined && Array.isArray(gitRecord["pullRequests"]) ? gitRecord["pullRequests"] : [];
+  const pullRequests: UiSessionPullRequest[] = prsRaw
+    .map((entry) => {
+      const pr = asRecord(entry);
+      if (pr === undefined) return undefined;
+      const repo = readString(pr, "repo");
+      const prNumber = readNumber(pr, "prNumber");
+      if (repo === undefined || prNumber === undefined) return undefined;
+      return {
+        repo,
+        prNumber,
+        state: readString(pr, "state") ?? "open",
+        ...(readString(pr, "url") !== undefined ? { url: readString(pr, "url") } : {})
+      };
+    })
+    .filter((entry): entry is UiSessionPullRequest => entry !== undefined);
+
   return {
     sessionId, startedAt,
     ...(endedAt !== undefined ? { endedAt } : {}),
+    ...(gitBranch !== undefined ? { gitBranch } : {}),
     metrics: {
       promptCount: readNumber(metrics, "promptCount") ?? 0,
       toolCallCount: readNumber(metrics, "toolCallCount") ?? 0,
@@ -290,6 +312,7 @@ function parseReplay(value: unknown): UiSessionReplay | undefined {
       filesTouched: readStringArray(metrics, "filesTouched")
     },
     commits,
+    pullRequests,
     timeline: timelineRaw
       .map((entry) => {
         const event = asRecord(entry);
@@ -395,9 +418,16 @@ function deduplicateToolEvents(events: readonly UiSessionReplayEvent[]): readonl
   return result;
 }
 
-function buildPromptGroups(timeline: readonly UiSessionReplayEvent[]): {
+function buildPromptGroups(timeline: readonly UiSessionReplayEvent[], commits: readonly UiSessionCommit[]): {
   groups: readonly PromptGroup[];
 } {
+  const commitsByPrompt = new Map<string, UiSessionCommit[]>();
+  for (const commit of commits) {
+    if (commit.promptId === undefined) continue;
+    const existing = commitsByPrompt.get(commit.promptId);
+    if (existing !== undefined) { existing.push(commit); }
+    else { commitsByPrompt.set(commit.promptId, [commit]); }
+  }
   const promptOrder: string[] = [];
   const promptMap = new Map<string, UiSessionReplayEvent[]>();
 
@@ -461,6 +491,7 @@ function buildPromptGroups(timeline: readonly UiSessionReplayEvent[]): {
 
     return {
       promptId, promptText, responseText, toolEvents,
+      commits: commitsByPrompt.get(promptId) ?? [],
       totalCostUsd, totalToolCalls, totalInputTokens, totalOutputTokens, totalDurationMs,
       filesRead: [...filesReadSet], filesWritten: [...filesWrittenSet]
     };
@@ -649,6 +680,9 @@ function PromptCard({ group, index }: { readonly group: PromptGroup; readonly in
           {group.promptText ?? `prompt ${group.promptId.slice(0, 8)}`}
         </div>
         <div className="prompt-stats">
+          {group.commits.length > 0 && (
+            <span className="badge commit-badge">{group.commits.length === 1 ? group.commits[0]?.sha.slice(0, 7) ?? "commit" : `${String(group.commits.length)} commits`}</span>
+          )}
           {group.totalToolCalls > 0 && (
             <span className="badge purple">{String(group.totalToolCalls)} tools</span>
           )}
@@ -667,6 +701,17 @@ function PromptCard({ group, index }: { readonly group: PromptGroup; readonly in
 
       {expanded && (
         <div className="prompt-body">
+          {group.commits.length > 0 && (
+            <div className="prompt-commits">
+              {group.commits.map((commit) => (
+                <div key={commit.sha} className="prompt-commit">
+                  <span className="commit-sha">{commit.sha.slice(0, 7)}</span>
+                  <span className="commit-message">{commit.message ?? "no message"}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {group.toolEvents.map((event) => (
             <EventRow key={event.id} event={event} />
           ))}
@@ -725,7 +770,7 @@ export function DashboardShell(props: DashboardShellProps): ReactElement {
   const maxCostPoint = useMemo(() => Math.max(0.01, ...costPoints.map((p) => p.totalCostUsd)), [costPoints]);
   const promptGroups = useMemo(() => {
     if (sessionReplay === undefined) return undefined;
-    return buildPromptGroups(sessionReplay.timeline);
+    return buildPromptGroups(sessionReplay.timeline, sessionReplay.commits);
   }, [sessionReplay]);
 
   useEffect(() => {
@@ -1016,31 +1061,65 @@ export function DashboardShell(props: DashboardShellProps): ReactElement {
                 )}
               </div>
 
-              {sessionReplay.commits.length > 0 && (
-                <div className="commits-section">
-                  <div className="commits-title">
-                    Commits ({String(sessionReplay.commits.length)})
+              {(sessionReplay.commits.length > 0 || sessionReplay.pullRequests.length > 0 || sessionReplay.gitBranch !== undefined) && (
+                <div className="outcome-section">
+                  <div className="outcome-header">Outcome</div>
+                  <div className="outcome-row">
+                    {sessionReplay.gitBranch !== undefined && (
+                      <span className="outcome-item">
+                        <span className="outcome-label">branch</span>
+                        <span className="outcome-value">{sessionReplay.gitBranch}</span>
+                      </span>
+                    )}
+                    {sessionReplay.commits.length > 0 && (
+                      <span className="outcome-item">
+                        <span className="outcome-label">{sessionReplay.commits.length === 1 ? "commit" : "commits"}</span>
+                        <span className="outcome-value">{String(sessionReplay.commits.length)}</span>
+                      </span>
+                    )}
+                    {(sessionReplay.metrics.linesAdded > 0 || sessionReplay.metrics.linesRemoved > 0) && (
+                      <span className="outcome-item">
+                        <span className="outcome-label">lines</span>
+                        <span className="outcome-value">
+                          <span className="line-stat green">+{String(sessionReplay.metrics.linesAdded)}</span>
+                          <span className="line-stat red">-{String(sessionReplay.metrics.linesRemoved)}</span>
+                        </span>
+                      </span>
+                    )}
+                    {sessionReplay.metrics.filesTouched.length > 0 && (
+                      <span className="outcome-item">
+                        <span className="outcome-label">files</span>
+                        <span className="outcome-value">{String(sessionReplay.metrics.filesTouched.length)}</span>
+                      </span>
+                    )}
                   </div>
-                  <table className="timeline-table">
-                    <thead>
-                      <tr>
-                        <th>SHA</th>
-                        <th>Message</th>
-                        <th>Prompt</th>
-                        <th>Time</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                  {sessionReplay.commits.length > 0 && (
+                    <div className="outcome-commits">
                       {sessionReplay.commits.map((commit) => (
-                        <tr key={commit.sha}>
-                          <td>{commit.sha.slice(0, 8)}</td>
-                          <td>{commit.message ?? "-"}</td>
-                          <td>{commit.promptId !== undefined ? commit.promptId.slice(0, 8) : "-"}</td>
-                          <td>{commit.committedAt !== undefined ? formatDate(commit.committedAt) : "-"}</td>
-                        </tr>
+                        <div key={commit.sha} className="outcome-commit-row">
+                          <span className="commit-sha">{commit.sha.slice(0, 7)}</span>
+                          <span className="commit-message">{commit.message ?? "-"}</span>
+                          {commit.promptId !== undefined && (
+                            <span className="commit-prompt-link">prompt {commit.promptId.slice(0, 6)}</span>
+                          )}
+                        </div>
                       ))}
-                    </tbody>
-                  </table>
+                    </div>
+                  )}
+                  {sessionReplay.pullRequests.length > 0 && (
+                    <div className="outcome-prs">
+                      {sessionReplay.pullRequests.map((pr) => (
+                        <div key={`${pr.repo}-${String(pr.prNumber)}`} className="outcome-pr-row">
+                          <span className="pr-badge">{pr.state}</span>
+                          <span className="pr-label">PR #{String(pr.prNumber)}</span>
+                          <span className="pr-repo">{pr.repo}</span>
+                          {pr.url !== undefined && (
+                            <a className="pr-link" href={pr.url} target="_blank" rel="noopener noreferrer">{pr.url}</a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

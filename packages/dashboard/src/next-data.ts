@@ -248,13 +248,17 @@ export async function fetchSessionReplay(sessionId: string): Promise<UiSessionRe
   }
 
   const endedAt = readString(sessionRecord, "endedAt");
+  const envRecord = asRecord(sessionRecord["environment"]);
+  const gitBranch = envRecord !== undefined ? readString(envRecord, "gitBranch") : undefined;
   const gitRecord = asRecord(sessionRecord["git"]);
   const commitsRaw = gitRecord !== undefined && Array.isArray(gitRecord["commits"]) ? gitRecord["commits"] : [];
+  const prsRaw = gitRecord !== undefined && Array.isArray(gitRecord["pullRequests"]) ? gitRecord["pullRequests"] : [];
 
   return {
     sessionId: parsedSessionId,
     startedAt,
     ...(endedAt !== undefined ? { endedAt } : {}),
+    ...(gitBranch !== undefined ? { gitBranch } : {}),
     metrics: {
       promptCount: readNumber(metricsRecord, "promptCount") ?? 0,
       toolCallCount: readNumber(metricsRecord, "toolCallCount") ?? 0,
@@ -270,6 +274,19 @@ export async function fetchSessionReplay(sessionId: string): Promise<UiSessionRe
     commits: commitsRaw.map((entry) => parseCommit(entry)).filter(
       (entry): entry is UiSessionCommit => entry !== undefined
     ),
+    pullRequests: prsRaw.map((entry) => {
+      const pr = asRecord(entry);
+      if (pr === undefined) return undefined;
+      const repo = readString(pr, "repo");
+      const prNumber = readNumber(pr, "prNumber");
+      if (repo === undefined || prNumber === undefined) return undefined;
+      return {
+        repo,
+        prNumber,
+        state: readString(pr, "state") ?? "open",
+        ...(readString(pr, "url") !== undefined ? { url: readString(pr, "url") } : {})
+      };
+    }).filter((entry): entry is NonNullable<typeof entry> => entry !== undefined),
     timeline: timelineRaw.map((entry) => parseReplayEvent(entry)).filter(
       (entry): entry is UiSessionReplayEvent => entry !== undefined
     )

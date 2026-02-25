@@ -96,7 +96,8 @@ function isGitBashPayload(payload: HookPayload): boolean {
     return false;
   }
 
-  return toolName.toLowerCase() === "bash" && command.trim().startsWith("git ");
+  const cmd = command.trim();
+  return toolName.toLowerCase() === "bash" && (cmd.startsWith("git ") || cmd.startsWith("gh pr ") || cmd.includes("gh pr create"));
 }
 
 function isSessionEndEvent(payload: HookPayload): boolean {
@@ -126,6 +127,27 @@ function parseCommitMessage(command: string): string | undefined {
     return undefined;
   }
   return match[1];
+}
+
+function extractPrUrl(payload: HookPayload): string | undefined {
+  const record = payload as Record<string, unknown>;
+  const output = readString(record, "tool_response") ?? readString(record, "toolResponse")
+    ?? readString(record, "stdout") ?? readString(record, "output");
+  const command = pickCommand(payload);
+  const combined = [command, output].filter((s) => s !== undefined).join("\n");
+  if (combined.length === 0) return undefined;
+
+  const prUrlMatch = combined.match(/https:\/\/github\.com\/[^\s"']+\/pull\/\d+/);
+  if (prUrlMatch !== null && prUrlMatch[0] !== undefined) return prUrlMatch[0];
+  return undefined;
+}
+
+function parsePrFromUrl(url: string): { readonly repo: string; readonly prNumber: number } | undefined {
+  const match = url.match(/https:\/\/github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)/);
+  if (match === null || match[1] === undefined || match[2] === undefined) return undefined;
+  const prNumber = Number.parseInt(match[2], 10);
+  if (!Number.isFinite(prNumber)) return undefined;
+  return { repo: match[1], prNumber };
 }
 
 function pickRepositoryPath(payload: HookPayload): string | undefined {
@@ -596,6 +618,19 @@ function enrichHookPayloadWithGitContext(
     readStringArray(record, "files_changed") ?? readStringArray(record, "filesChanged");
   if (existingFilesChanged === undefined && filesChanged !== undefined) {
     patch["files_changed"] = filesChanged;
+  }
+
+  const prUrl = extractPrUrl(payload);
+  if (prUrl !== undefined) {
+    const existingPrUrl = readString(record, "pr_url") ?? readString(record, "prUrl");
+    if (existingPrUrl === undefined) {
+      patch["pr_url"] = prUrl;
+      const parsed = parsePrFromUrl(prUrl);
+      if (parsed !== undefined) {
+        patch["pr_repo"] = parsed.repo;
+        patch["pr_number"] = parsed.prNumber;
+      }
+    }
   }
 
   if (Object.keys(patch).length === 0) {
