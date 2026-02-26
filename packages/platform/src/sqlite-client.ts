@@ -15,7 +15,7 @@ import type {
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS agent_events (
-  event_id TEXT NOT NULL,
+  event_id TEXT NOT NULL UNIQUE,
   event_type TEXT NOT NULL,
   event_timestamp TEXT NOT NULL,
   session_id TEXT NOT NULL,
@@ -137,6 +137,7 @@ export class SqliteClient
     this.db = new Database(dbPath);
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("synchronous = NORMAL");
+    this.migrateDeduplicateEvents();
     this.db.exec(SCHEMA_SQL);
   }
 
@@ -362,9 +363,150 @@ export class SqliteClient
     this.db.close();
   }
 
+  /**
+   * Migration: deduplicate agent_events rows from older schemas that lacked a UNIQUE constraint.
+   * Runs once — if the old table exists without a unique index, it rebuilds it.
+   */
+  private migrateDeduplicateEvents(): void {
+    // Check if agent_events table exists at all
+    const tableExists = this.db.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='agent_events'"
+    ).get();
+    if (tableExists === undefined) {
+      return; // Fresh database — SCHEMA_SQL will create the table with UNIQUE
+    }
+
+    // Check if unique index already exists (either from UNIQUE column constraint or explicit index)
+    const hasUniqueIndex = this.db.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type='index' AND tbl_name='agent_events' AND sql LIKE '%UNIQUE%'"
+    ).get();
+    // Also check via pragma for autoindex created by UNIQUE column constraint
+    const indexInfo = this.db.prepare("PRAGMA index_list('agent_events')").all() as Record<string, unknown>[];
+    const hasAutoUnique = indexInfo.some((idx) => (idx["unique"] as number) === 1);
+
+    if (hasUniqueIndex !== undefined || hasAutoUnique) {
+      return; // Already migrated
+    }
+
+    // Count duplicates to log
+    const countResult = this.db.prepare(
+      "SELECT COUNT(*) as total FROM agent_events"
+    ).get() as { total: number } | undefined;
+    const distinctResult = this.db.prepare(
+      "SELECT COUNT(DISTINCT event_id) as distinct_count FROM agent_events"
+    ).get() as { distinct_count: number } | undefined;
+    const total = countResult?.total ?? 0;
+    const distinct = distinctResult?.distinct_count ?? 0;
+
+    if (total === 0) {
+      // Empty table — just drop and let SCHEMA_SQL recreate with UNIQUE
+      this.db.exec("DROP TABLE agent_events");
+      // Also clear session_traces so they rehydrate cleanly
+      const tracesExist = this.db.prepare(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='session_traces'"
+      ).get();
+      if (tracesExist !== undefined) {
+        this.db.exec("DELETE FROM session_traces");
+      }
+      return;
+    }
+
+    console.log(`[agent-trace] migrating: deduplicating agent_events (${total} rows → ${distinct} distinct)`);
+
+    // Rebuild: create clean table, copy distinct rows, swap
+    this.db.exec(`
+      CREATE TABLE agent_events_dedup (
+        event_id TEXT NOT NULL UNIQUE,
+        event_type TEXT NOT NULL,
+        event_timestamp TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        prompt_id TEXT,
+        user_id TEXT NOT NULL DEFAULT 'unknown_user',
+        source TEXT NOT NULL DEFAULT 'hook',
+        agent_type TEXT NOT NULL DEFAULT 'claude_code',
+        tool_name TEXT,
+        tool_success INTEGER,
+        tool_duration_ms REAL,
+        model TEXT,
+        cost_usd REAL,
+        input_tokens INTEGER,
+        output_tokens INTEGER,
+        api_duration_ms REAL,
+        lines_added INTEGER,
+        lines_removed INTEGER,
+        files_changed TEXT NOT NULL DEFAULT '[]',
+        commit_sha TEXT,
+        attributes TEXT NOT NULL DEFAULT '{}'
+      );
+
+      INSERT OR IGNORE INTO agent_events_dedup SELECT * FROM agent_events;
+
+      DROP TABLE agent_events;
+      ALTER TABLE agent_events_dedup RENAME TO agent_events;
+
+      CREATE INDEX IF NOT EXISTS idx_events_session ON agent_events(session_id);
+      CREATE INDEX IF NOT EXISTS idx_events_timestamp ON agent_events(event_timestamp);
+    `);
+
+    const afterCount = this.db.prepare("SELECT COUNT(*) as c FROM agent_events").get() as { c: number };
+    console.log(`[agent-trace] migration complete: ${afterCount.c} events after dedup (removed ${total - afterCount.c} duplicates)`);
+
+    // Rebuild session_traces from deduplicated events
+    this.rebuildSessionTracesFromEvents();
+  }
+
+  /**
+   * Rebuild session_traces by aggregating deduplicated agent_events.
+   * Called after dedup migration so the dashboard has correct metrics immediately.
+   */
+  private rebuildSessionTracesFromEvents(): void {
+    const tracesExist = this.db.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='session_traces'"
+    ).get();
+    if (tracesExist === undefined) {
+      return;
+    }
+
+    this.db.exec("DELETE FROM session_traces");
+
+    this.db.exec(`
+      INSERT OR REPLACE INTO session_traces
+        (session_id, version, started_at, ended_at, user_id, git_repo, git_branch,
+         prompt_count, tool_call_count, api_call_count, total_cost_usd,
+         total_input_tokens, total_output_tokens, lines_added, lines_removed,
+         models_used, tools_used, files_touched, commit_count, updated_at)
+      SELECT
+        session_id,
+        1,
+        MIN(event_timestamp),
+        MAX(event_timestamp),
+        COALESCE(MAX(CASE WHEN user_id != 'unknown_user' THEN user_id END), 'unknown_user'),
+        NULL,
+        NULL,
+        SUM(CASE WHEN event_type LIKE '%prompt%' THEN 1 ELSE 0 END),
+        SUM(CASE WHEN event_type LIKE '%tool%' THEN 1 ELSE 0 END),
+        SUM(CASE WHEN event_type LIKE '%api%' THEN 1 ELSE 0 END),
+        COALESCE(SUM(cost_usd), 0),
+        COALESCE(SUM(input_tokens), 0),
+        COALESCE(SUM(output_tokens), 0),
+        COALESCE(SUM(lines_added), 0),
+        COALESCE(SUM(lines_removed), 0),
+        '[]',
+        '[]',
+        '[]',
+        COUNT(DISTINCT commit_sha),
+        MAX(event_timestamp)
+      FROM agent_events
+      GROUP BY session_id
+    `);
+
+    const rebuilt = this.db.prepare("SELECT COUNT(*) as c FROM session_traces").get() as { c: number };
+    console.log(`[agent-trace] rebuilt ${rebuilt.c} session traces from deduplicated events`);
+  }
+
   private insertEvents(rows: readonly ClickHouseAgentEventRow[]): void {
     const insert = this.db.prepare(`
-      INSERT INTO agent_events
+      INSERT OR IGNORE INTO agent_events
         (event_id, event_type, event_timestamp, session_id, prompt_id, user_id, source, agent_type,
          tool_name, tool_success, tool_duration_ms, model, cost_usd, input_tokens, output_tokens,
          api_duration_ms, lines_added, lines_removed, files_changed, commit_sha, attributes)
