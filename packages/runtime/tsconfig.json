@@ -14,6 +14,9 @@
     "test/**/*.ts",
     "scripts/**/*.ts"
   ],
+  "exclude": [
+    "src/standalone-entry.ts"
+  ],
   "references": [
     {
       "path": "../schema"

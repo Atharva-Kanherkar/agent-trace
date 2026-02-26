@@ -12,7 +12,9 @@ import type {
   OtelGrpcReceiverStats
 } from "./types";
 
-const OTLP_LOGS_PROTO_PATH = path.resolve(__dirname, "../../proto/otlp_logs_service.proto");
+function getOtlpLogsProtoPath(): string {
+  return path.resolve(__dirname, "../../proto/otlp_logs_service.proto");
+}
 
 interface MutableOtelGrpcReceiverStats {
   exportCalls: number;
@@ -45,7 +47,7 @@ function parseHost(address: string): string {
 }
 
 function loadLogsServiceDefinition(): grpc.ServiceDefinition<grpc.UntypedServiceImplementation> {
-  const packageDefinition = protoLoader.loadSync(OTLP_LOGS_PROTO_PATH, {
+  const packageDefinition = protoLoader.loadSync(getOtlpLogsProtoPath(), {
     longs: String,
     enums: String,
     defaults: false,
