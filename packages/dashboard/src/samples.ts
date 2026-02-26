@@ -40,6 +40,8 @@ export function createDashboardSampleTrace(overrides: Partial<AgentSessionTrace>
       totalCostUsd: 0.42,
       totalInputTokens: 120,
       totalOutputTokens: 50,
+      totalCacheReadTokens: 0,
+      totalCacheWriteTokens: 0,
       linesAdded: 12,
       linesRemoved: 2,
       filesTouched: ["README.md"],

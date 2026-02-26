@@ -18,6 +18,7 @@ import type {
   PlatformEventEnvelope,
   PostgresCommitRow,
   PostgresInstanceSettingRow,
+  PostgresPullRequestRow,
   PostgresSessionPersistenceClient,
   PostgresSessionRow,
   PostgresSettingsPersistenceClient
@@ -51,6 +52,8 @@ class SmokePostgresSessionClient implements PostgresSessionPersistenceClient {
   public async upsertCommits(rows: readonly PostgresCommitRow[]): Promise<void> {
     this.commitRows = rows;
   }
+
+  public async upsertPullRequests(_rows: readonly PostgresPullRequestRow[]): Promise<void> {}
 }
 
 class SmokePostgresSettingsClient implements PostgresSettingsPersistenceClient {
@@ -103,6 +106,8 @@ function createManualTrace(): AgentSessionTrace {
       totalCostUsd: 0.23,
       totalInputTokens: 0,
       totalOutputTokens: 0,
+      totalCacheReadTokens: 0,
+      totalCacheWriteTokens: 0,
       linesAdded: 0,
       linesRemoved: 0,
       filesTouched: [],

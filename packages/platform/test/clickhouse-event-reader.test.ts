@@ -34,6 +34,8 @@ function createRow(overrides: Partial<ClickHouseAgentEventReadRow> = {}): ClickH
     cost_usd: "0.02",
     input_tokens: 120,
     output_tokens: 40,
+    cache_read_tokens: null,
+    cache_write_tokens: null,
     attributes: {
       event_id_raw: "evt_manual_e2e_001",
       hook_name: "PostToolUse"

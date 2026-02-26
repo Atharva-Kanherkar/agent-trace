@@ -40,6 +40,8 @@ test("startDashboardServer serves html, health, and sessions bridge", async () =
             totalCostUsd: 0.31,
             totalInputTokens: 1200,
             totalOutputTokens: 800,
+            totalCacheReadTokens: 0,
+            totalCacheWriteTokens: 0,
             linesAdded: 42,
             linesRemoved: 5,
             modelsUsed: ["claude-sonnet-4-20250514"],

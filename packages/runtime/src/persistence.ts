@@ -8,6 +8,7 @@ import type {
   ClickHouseInsertClient,
   ClickHouseInsertRequest,
   PostgresCommitRow,
+  PostgresPullRequestRow,
   PostgresSessionPersistenceClient,
   PostgresSessionRow
 } from "../../platform/src/persistence-types";
@@ -35,6 +36,7 @@ class InMemoryRuntimeClickHouseClient implements ClickHouseInsertClient<ClickHou
 class InMemoryRuntimePostgresClient implements PostgresSessionPersistenceClient {
   private readonly sessionsById = new Map<string, PostgresSessionRow>();
   private readonly commitsBySha = new Map<string, PostgresCommitRow>();
+  private readonly pullRequestsByKey = new Map<string, PostgresPullRequestRow>();
 
   public async upsertSessions(rows: readonly PostgresSessionRow[]): Promise<void> {
     rows.forEach((row) => {
@@ -48,12 +50,22 @@ class InMemoryRuntimePostgresClient implements PostgresSessionPersistenceClient 
     });
   }
 
+  public async upsertPullRequests(rows: readonly PostgresPullRequestRow[]): Promise<void> {
+    rows.forEach((row) => {
+      this.pullRequestsByKey.set(`${row.session_id}:${row.repo}:${String(row.pr_number)}`, row);
+    });
+  }
+
   public listSessions(): readonly PostgresSessionRow[] {
     return [...this.sessionsById.values()];
   }
 
   public listCommits(): readonly PostgresCommitRow[] {
     return [...this.commitsBySha.values()];
+  }
+
+  public listPullRequests(): readonly PostgresPullRequestRow[] {
+    return [...this.pullRequestsByKey.values()];
   }
 }
 

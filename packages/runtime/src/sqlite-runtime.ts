@@ -8,9 +8,10 @@ import type {
   ClickHouseAgentEventReadRow,
   ClickHouseSessionTraceRow,
   ClickHouseInsertRequest,
-  PostgresCommitReadRow
+  PostgresCommitReadRow,
+  PostgresPullRequestRow
 } from "../../platform/src/persistence-types";
-import type { AgentSessionTrace, CommitInfo } from "../../schema/src/types";
+import type { AgentSessionTrace, CommitInfo, PullRequestInfo } from "../../schema/src/types";
 import { calculateCostUsd } from "../../schema/src/pricing";
 import { createInMemoryRuntime, type InMemoryRuntime } from "./runtime";
 import type { RuntimePersistence, RuntimePersistenceSnapshot, RuntimeEnvelope, RuntimeDailyCostReader } from "./types";
@@ -107,10 +108,22 @@ function hydrateFromSqlite(runtime: InMemoryRuntime, sqlite: SqliteClient, limit
       const extra = commits.filter((c: CommitInfo) => !pgShas.has(c.sha));
       commits = [...mapped, ...extra];
     }
+    let pullRequests: readonly PullRequestInfo[] = trace.git.pullRequests;
+    const pgPrs = sqlite.listPullRequestsBySessionId(row.session_id);
+    if (pgPrs.length > 0) {
+      pullRequests = pgPrs.map((pr: PostgresPullRequestRow) => ({
+        repo: pr.repo,
+        prNumber: pr.pr_number,
+        state: pr.state,
+        ...(pr.url !== null ? { url: pr.url } : {}),
+        ...(pr.merged_at !== null ? { mergedAt: pr.merged_at } : {})
+      }));
+    }
+
     let hydratedTrace: AgentSessionTrace = {
       ...trace,
       timeline,
-      git: { ...trace.git, commits }
+      git: { ...trace.git, commits, pullRequests }
     };
 
     // Recalculate cost from tokens if stored cost is 0 but tokens exist

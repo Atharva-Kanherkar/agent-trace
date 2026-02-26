@@ -9,6 +9,7 @@ import type {
   ClickHouseSessionTraceRow,
   PostgresCommitReadRow,
   PostgresCommitRow,
+  PostgresPullRequestRow,
   PostgresSessionPersistenceClient,
   PostgresSessionRow
 } from "./persistence-types";
@@ -97,6 +98,18 @@ CREATE TABLE IF NOT EXISTS commits (
 );
 
 CREATE INDEX IF NOT EXISTS idx_commits_session ON commits(session_id);
+
+CREATE TABLE IF NOT EXISTS pull_requests (
+  session_id TEXT NOT NULL,
+  repo TEXT NOT NULL,
+  pr_number INTEGER NOT NULL,
+  state TEXT NOT NULL DEFAULT 'open',
+  url TEXT,
+  merged_at TEXT,
+  PRIMARY KEY (session_id, repo, pr_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pull_requests_session ON pull_requests(session_id);
 `;
 
 function toJsonArray(value: readonly string[]): string {
@@ -288,6 +301,36 @@ export class SqliteClient
       }
     });
     transaction(rows);
+  }
+
+  public async upsertPullRequests(rows: readonly PostgresPullRequestRow[]): Promise<void> {
+    if (rows.length === 0) return;
+
+    const upsert = this.db.prepare(`
+      INSERT INTO pull_requests
+        (session_id, repo, pr_number, state, url, merged_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(session_id, repo, pr_number) DO UPDATE SET
+        state = excluded.state,
+        url = COALESCE(excluded.url, pull_requests.url),
+        merged_at = COALESCE(excluded.merged_at, pull_requests.merged_at)
+    `);
+
+    const transaction = this.db.transaction((prRows: readonly PostgresPullRequestRow[]) => {
+      for (const row of prRows) {
+        upsert.run(
+          row.session_id, row.repo, row.pr_number, row.state, row.url, row.merged_at
+        );
+      }
+    });
+    transaction(rows);
+  }
+
+  public listPullRequestsBySessionId(sessionId: string): readonly PostgresPullRequestRow[] {
+    const rows = this.db.prepare(
+      "SELECT session_id, repo, pr_number, state, url, merged_at FROM pull_requests WHERE session_id = ? ORDER BY pr_number ASC"
+    ).all(sessionId) as PostgresPullRequestRow[];
+    return rows;
   }
 
   public listCommitsBySessionId(sessionId: string): readonly PostgresCommitReadRow[] {

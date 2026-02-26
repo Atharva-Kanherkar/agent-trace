@@ -5,6 +5,7 @@ import type {
   ClickHouseAgentEventRow,
   ClickHouseInsertRequest,
   PostgresCommitRow,
+  PostgresPullRequestRow,
   PostgresSessionRow
 } from "../../platform/src/persistence-types";
 import { createRuntimeEnvelope } from "../src/samples";
@@ -46,6 +47,8 @@ class FakeClosablePostgresClient implements RuntimeClosablePostgresClient {
   public async upsertCommits(rows: readonly PostgresCommitRow[]): Promise<void> {
     this.commitsRequests.push(rows);
   }
+
+  public async upsertPullRequests(_rows: readonly PostgresPullRequestRow[]): Promise<void> {}
 
   public async close(): Promise<void> {
     this.closeCalled = true;

@@ -12,6 +12,7 @@ import type {
   PostgresConnectionOptions,
   PostgresInstanceSettingRow,
   PostgresPoolClient,
+  PostgresPullRequestRow,
   PostgresSessionPersistenceClient,
   PostgresSessionRow,
   PostgresSettingsPersistenceClient,
@@ -205,6 +206,26 @@ export class PostgresPgPersistenceClient
     } finally {
       client.release();
     }
+  }
+
+  public async upsertPullRequests(rows: readonly PostgresPullRequestRow[]): Promise<void> {
+    if (rows.length === 0) {
+      return;
+    }
+
+    await runInTransaction(this.pool, async (client) => {
+      for (const row of rows) {
+        await client.query(
+          `INSERT INTO pull_requests (session_id, repo, pr_number, state, url, merged_at)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (session_id, repo, pr_number) DO UPDATE SET
+             state = EXCLUDED.state,
+             url = COALESCE(EXCLUDED.url, pull_requests.url),
+             merged_at = COALESCE(EXCLUDED.merged_at, pull_requests.merged_at)`,
+          [row.session_id, row.repo, row.pr_number, row.state, row.url, row.merged_at]
+        );
+      }
+    });
   }
 
   public async upsertInstanceSettings(rows: readonly PostgresInstanceSettingRow[]): Promise<void> {

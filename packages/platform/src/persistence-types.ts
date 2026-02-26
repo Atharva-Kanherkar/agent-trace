@@ -144,9 +144,19 @@ export interface PostgresCommitReadRow {
   readonly committed_at: string | null;
 }
 
+export interface PostgresPullRequestRow {
+  readonly session_id: string;
+  readonly repo: string;
+  readonly pr_number: number;
+  readonly state: string;
+  readonly url: string | null;
+  readonly merged_at: string | null;
+}
+
 export interface PostgresSessionPersistenceClient {
   upsertSessions(rows: readonly PostgresSessionRow[]): Promise<void>;
   upsertCommits(rows: readonly PostgresCommitRow[]): Promise<void>;
+  upsertPullRequests(rows: readonly PostgresPullRequestRow[]): Promise<void>;
 }
 
 export interface PostgresCommitReader {

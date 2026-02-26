@@ -345,6 +345,18 @@ function parseSessionMetrics(value: unknown, errors: string[]): SessionMetrics |
     errors,
     "metrics.totalOutputTokens"
   );
+  const totalCacheReadTokens = readRequiredNonNegativeNumber(
+    value,
+    "totalCacheReadTokens",
+    errors,
+    "metrics.totalCacheReadTokens"
+  );
+  const totalCacheWriteTokens = readRequiredNonNegativeNumber(
+    value,
+    "totalCacheWriteTokens",
+    errors,
+    "metrics.totalCacheWriteTokens"
+  );
   const linesAdded = readRequiredNonNegativeNumber(value, "linesAdded", errors, "metrics.linesAdded");
   const linesRemoved = readRequiredNonNegativeNumber(value, "linesRemoved", errors, "metrics.linesRemoved");
   const filesTouched = readRequiredStringArray(value, "filesTouched", errors, "metrics.filesTouched");
@@ -358,6 +370,8 @@ function parseSessionMetrics(value: unknown, errors: string[]): SessionMetrics |
     totalCostUsd === undefined ||
     totalInputTokens === undefined ||
     totalOutputTokens === undefined ||
+    totalCacheReadTokens === undefined ||
+    totalCacheWriteTokens === undefined ||
     linesAdded === undefined ||
     linesRemoved === undefined ||
     filesTouched === undefined ||
@@ -374,6 +388,8 @@ function parseSessionMetrics(value: unknown, errors: string[]): SessionMetrics |
     totalCostUsd,
     totalInputTokens,
     totalOutputTokens,
+    totalCacheReadTokens,
+    totalCacheWriteTokens,
     linesAdded,
     linesRemoved,
     filesTouched,

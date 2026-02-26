@@ -66,12 +66,30 @@ async function hydrateRuntimeFromClickHouse(
           // commit enrichment is best-effort
         }
       }
+      let pullRequests = trace.git.pullRequests;
+      if (postgresClient?.listPullRequestsBySessionId !== undefined) {
+        try {
+          const prRows = await postgresClient.listPullRequestsBySessionId(trace.sessionId);
+          if (prRows.length > 0) {
+            pullRequests = prRows.map((row) => ({
+              repo: row.repo,
+              prNumber: row.pr_number,
+              state: row.state,
+              ...(row.url !== null ? { url: row.url } : {}),
+              ...(row.merged_at !== null ? { mergedAt: row.merged_at } : {})
+            }));
+          }
+        } catch {
+          // PR enrichment is best-effort
+        }
+      }
       return {
         ...trace,
         timeline,
         git: {
           ...trace.git,
-          commits
+          commits,
+          pullRequests
         }
       };
     })

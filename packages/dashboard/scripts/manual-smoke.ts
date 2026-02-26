@@ -86,6 +86,8 @@ async function main(): Promise<void> {
             totalCostUsd: 0.42,
             totalInputTokens: 0,
             totalOutputTokens: 0,
+            totalCacheReadTokens: 0,
+            totalCacheWriteTokens: 0,
             linesAdded: 0,
             linesRemoved: 0,
             modelsUsed: [],

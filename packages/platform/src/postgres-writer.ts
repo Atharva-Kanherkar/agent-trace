@@ -1,8 +1,9 @@
-import type { AgentSessionTrace, CommitInfo } from "../../schema/src/types";
+import type { AgentSessionTrace, CommitInfo, PullRequestInfo } from "../../schema/src/types";
 import type {
   JsonValue,
   PostgresCommitRow,
   PostgresInstanceSettingRow,
+  PostgresPullRequestRow,
   PostgresSessionPersistenceClient,
   PostgresSessionRow,
   PostgresSessionWriterSummary,
@@ -65,6 +66,21 @@ export function toPostgresCommitRows(trace: AgentSessionTrace): readonly Postgre
   return trace.git.commits.map((commit) => toPostgresCommitRow(trace, commit));
 }
 
+function toPostgresPullRequestRow(trace: AgentSessionTrace, pr: PullRequestInfo): PostgresPullRequestRow {
+  return {
+    session_id: trace.sessionId,
+    repo: pr.repo,
+    pr_number: pr.prNumber,
+    state: pr.state,
+    url: toNullableString(pr.url),
+    merged_at: toNullableString(pr.mergedAt)
+  };
+}
+
+export function toPostgresPullRequestRows(trace: AgentSessionTrace): readonly PostgresPullRequestRow[] {
+  return trace.git.pullRequests.map((pr) => toPostgresPullRequestRow(trace, pr));
+}
+
 function dedupeBySessionId(rows: readonly PostgresSessionRow[]): readonly PostgresSessionRow[] {
   const bySession = new Map<string, PostgresSessionRow>();
   rows.forEach((row) => {
@@ -79,6 +95,14 @@ function dedupeBySha(rows: readonly PostgresCommitRow[]): readonly PostgresCommi
     bySha.set(row.sha, row);
   });
   return [...bySha.values()];
+}
+
+function dedupePullRequests(rows: readonly PostgresPullRequestRow[]): readonly PostgresPullRequestRow[] {
+  const byKey = new Map<string, PostgresPullRequestRow>();
+  rows.forEach((row) => {
+    byKey.set(`${row.session_id}:${row.repo}:${String(row.pr_number)}`, row);
+  });
+  return [...byKey.values()];
 }
 
 export class PostgresSessionWriter {
@@ -102,10 +126,12 @@ export class PostgresSessionWriter {
 
     const sessions = dedupeBySessionId(traces.map(toPostgresSessionRow));
     const commitRows = dedupeBySha(traces.flatMap((trace) => toPostgresCommitRows(trace)));
+    const prRows = dedupePullRequests(traces.flatMap((trace) => toPostgresPullRequestRows(trace)));
 
     const sessionsPromise = this.client.upsertSessions(sessions);
     const commitsPromise = this.client.upsertCommits(commitRows);
-    await Promise.all([sessionsPromise, commitsPromise]);
+    const prsPromise = this.client.upsertPullRequests(prRows);
+    await Promise.all([sessionsPromise, commitsPromise, prsPromise]);
 
     return {
       writtenSessions: sessions.length,

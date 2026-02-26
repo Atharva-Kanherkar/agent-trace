@@ -41,6 +41,8 @@ function createSampleTrace(overrides: Partial<AgentSessionTrace> = {}): AgentSes
       totalCostUsd: 0.19,
       totalInputTokens: 1200,
       totalOutputTokens: 280,
+      totalCacheReadTokens: 0,
+      totalCacheWriteTokens: 0,
       linesAdded: 18,
       linesRemoved: 4,
       filesTouched: ["README.md", "README.md", "docs/HLD_LLD.md"],

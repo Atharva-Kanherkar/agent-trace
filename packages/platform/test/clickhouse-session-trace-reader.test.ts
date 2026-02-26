@@ -38,6 +38,8 @@ function createRow(overrides: Partial<ClickHouseSessionTraceRow> = {}): ClickHou
     total_cost_usd: 0.44,
     total_input_tokens: 1500,
     total_output_tokens: 420,
+    total_cache_read_tokens: 0,
+    total_cache_write_tokens: 0,
     lines_added: 21,
     lines_removed: 6,
     models_used: ["claude-sonnet-4", "claude-sonnet-4"],

@@ -11,6 +11,7 @@ import {
 import type {
   PostgresCommitRow,
   PostgresInstanceSettingRow,
+  PostgresPullRequestRow,
   PostgresSessionPersistenceClient,
   PostgresSessionRow,
   PostgresSettingsPersistenceClient
@@ -34,6 +35,8 @@ function createSampleTrace(overrides: Partial<AgentSessionTrace> = {}): AgentSes
       totalCostUsd: 0,
       totalInputTokens: 0,
       totalOutputTokens: 0,
+      totalCacheReadTokens: 0,
+      totalCacheWriteTokens: 0,
       linesAdded: 0,
       linesRemoved: 0,
       filesTouched: [],
@@ -59,6 +62,8 @@ class MockSessionClient implements PostgresSessionPersistenceClient {
   public async upsertCommits(rows: readonly PostgresCommitRow[]): Promise<void> {
     this.commitsRequests.push(rows);
   }
+
+  public async upsertPullRequests(_rows: readonly PostgresPullRequestRow[]): Promise<void> {}
 }
 
 class MockSettingsClient implements PostgresSettingsPersistenceClient {

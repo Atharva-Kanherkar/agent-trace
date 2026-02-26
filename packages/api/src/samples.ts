@@ -32,6 +32,8 @@ export function createSampleTrace(overrides: Partial<AgentSessionTrace> = {}): A
       totalCostUsd: 0.42,
       totalInputTokens: 120,
       totalOutputTokens: 50,
+      totalCacheReadTokens: 0,
+      totalCacheWriteTokens: 0,
       linesAdded: 10,
       linesRemoved: 2,
       filesTouched: ["README.md"],

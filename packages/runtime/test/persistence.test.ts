@@ -8,6 +8,7 @@ import type {
   ClickHouseInsertClient,
   ClickHouseInsertRequest,
   PostgresCommitRow,
+  PostgresPullRequestRow,
   PostgresSessionPersistenceClient,
   PostgresSessionRow
 } from "../../platform/src/persistence-types";
@@ -46,6 +47,8 @@ class FakePostgresSessionClient implements PostgresSessionPersistenceClient {
   public async upsertCommits(rows: readonly PostgresCommitRow[]): Promise<void> {
     this.commitsRequests.push(rows);
   }
+
+  public async upsertPullRequests(_rows: readonly PostgresPullRequestRow[]): Promise<void> {}
 }
 
 class RecordingPersistence implements RuntimePersistence {

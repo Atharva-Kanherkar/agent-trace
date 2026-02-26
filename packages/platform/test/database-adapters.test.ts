@@ -92,6 +92,8 @@ function createClickHouseRow(overrides: Partial<ClickHouseAgentEventRow> = {}): 
     cost_usd: 0.01,
     input_tokens: 100,
     output_tokens: 20,
+    cache_read_tokens: null,
+    cache_write_tokens: null,
     api_duration_ms: 800,
     lines_added: 2,
     lines_removed: 1,
