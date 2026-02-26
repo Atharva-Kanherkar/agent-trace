@@ -41,12 +41,15 @@ class SqlitePersistence implements RuntimePersistence {
 
   public async persistAcceptedEvent(event: RuntimeEnvelope, trace: AgentSessionTrace): Promise<void> {
     const eventWrite = this.eventWriter.writeEvent(event).catch((error: unknown) => {
+      console.error(`[agent-trace] sqlite_events write failed: ${String(error)}`);
       this.writeFailures.push(`sqlite_events: ${String(error)}`);
     });
     const traceWrite = this.sessionTraceWriter.writeTrace(trace).catch((error: unknown) => {
+      console.error(`[agent-trace] sqlite_traces write failed: ${String(error)}`);
       this.writeFailures.push(`sqlite_traces: ${String(error)}`);
     });
     const sessionWrite = this.postgresWriter.writeTrace(trace).catch((error: unknown) => {
+      console.error(`[agent-trace] sqlite_sessions write failed: ${String(error)}`);
       this.writeFailures.push(`sqlite_sessions: ${String(error)}`);
     });
 

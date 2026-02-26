@@ -141,9 +141,9 @@ export class SqliteClient
     this.db = new Database(dbPath);
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("synchronous = NORMAL");
+    this.migrateCacheTokenColumns();
     this.migrateDeduplicateEvents();
     this.db.exec(SCHEMA_SQL);
-    this.migrateCacheTokenColumns();
     this.migrateRebuildBrokenTraces();
   }
 
