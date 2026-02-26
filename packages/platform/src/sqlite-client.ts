@@ -1,0 +1,430 @@
+import Database from "better-sqlite3";
+
+import type {
+  ClickHouseAgentEventRow,
+  ClickHouseAgentEventReadRow,
+  ClickHouseInsertClient,
+  ClickHouseInsertRequest,
+  ClickHouseQueryClient,
+  ClickHouseSessionTraceRow,
+  PostgresCommitReadRow,
+  PostgresCommitRow,
+  PostgresSessionPersistenceClient,
+  PostgresSessionRow
+} from "./persistence-types";
+
+const SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS agent_events (
+  event_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  event_timestamp TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  prompt_id TEXT,
+  user_id TEXT NOT NULL DEFAULT 'unknown_user',
+  source TEXT NOT NULL DEFAULT 'hook',
+  agent_type TEXT NOT NULL DEFAULT 'claude_code',
+  tool_name TEXT,
+  tool_success INTEGER,
+  tool_duration_ms REAL,
+  model TEXT,
+  cost_usd REAL,
+  input_tokens INTEGER,
+  output_tokens INTEGER,
+  api_duration_ms REAL,
+  lines_added INTEGER,
+  lines_removed INTEGER,
+  files_changed TEXT NOT NULL DEFAULT '[]',
+  commit_sha TEXT,
+  attributes TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_events_session ON agent_events(session_id);
+CREATE INDEX IF NOT EXISTS idx_events_timestamp ON agent_events(event_timestamp);
+
+CREATE TABLE IF NOT EXISTS session_traces (
+  session_id TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 1,
+  started_at TEXT NOT NULL,
+  ended_at TEXT,
+  user_id TEXT NOT NULL DEFAULT 'unknown_user',
+  git_repo TEXT,
+  git_branch TEXT,
+  prompt_count INTEGER NOT NULL DEFAULT 0,
+  tool_call_count INTEGER NOT NULL DEFAULT 0,
+  api_call_count INTEGER NOT NULL DEFAULT 0,
+  total_cost_usd REAL NOT NULL DEFAULT 0,
+  total_input_tokens INTEGER NOT NULL DEFAULT 0,
+  total_output_tokens INTEGER NOT NULL DEFAULT 0,
+  lines_added INTEGER NOT NULL DEFAULT 0,
+  lines_removed INTEGER NOT NULL DEFAULT 0,
+  models_used TEXT NOT NULL DEFAULT '[]',
+  tools_used TEXT NOT NULL DEFAULT '[]',
+  files_touched TEXT NOT NULL DEFAULT '[]',
+  commit_count INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (session_id)
+);
+
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  session_id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  ended_at TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  project_path TEXT,
+  git_repo TEXT,
+  git_branch TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS commits (
+  sha TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  prompt_id TEXT,
+  message TEXT,
+  lines_added INTEGER NOT NULL DEFAULT 0,
+  lines_removed INTEGER NOT NULL DEFAULT 0,
+  chain_cost_usd REAL NOT NULL DEFAULT 0,
+  committed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_commits_session ON commits(session_id);
+`;
+
+function toJsonArray(value: readonly string[]): string {
+  return JSON.stringify(value);
+}
+
+function fromJsonArray(value: unknown): readonly string[] {
+  if (typeof value !== "string") return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is string => typeof item === "string");
+  } catch {
+    return [];
+  }
+}
+
+function fromJsonObject(value: unknown): Readonly<Record<string, string>> {
+  if (typeof value !== "string") return {};
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+    const result: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof v === "string") result[k] = v;
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+export class SqliteClient
+  implements
+    ClickHouseInsertClient<ClickHouseAgentEventRow>,
+    ClickHouseQueryClient,
+    PostgresSessionPersistenceClient
+{
+  private readonly db: Database.Database;
+
+  public constructor(dbPath: string) {
+    this.db = new Database(dbPath);
+    this.db.pragma("journal_mode = WAL");
+    this.db.pragma("synchronous = NORMAL");
+    this.db.exec(SCHEMA_SQL);
+  }
+
+  public async insertJsonEachRow(request: ClickHouseInsertRequest<ClickHouseAgentEventRow>): Promise<void> {
+    if (request.rows.length === 0) return;
+
+    if (request.table === "agent_events" || request.table === undefined) {
+      this.insertEvents(request.rows);
+    }
+  }
+
+  public insertSessionTraces(rows: readonly ClickHouseSessionTraceRow[]): void {
+    if (rows.length === 0) return;
+
+    const upsert = this.db.prepare(`
+      INSERT INTO session_traces
+        (session_id, version, started_at, ended_at, user_id, git_repo, git_branch,
+         prompt_count, tool_call_count, api_call_count, total_cost_usd,
+         total_input_tokens, total_output_tokens, lines_added, lines_removed,
+         models_used, tools_used, files_touched, commit_count, updated_at)
+      VALUES
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(session_id) DO UPDATE SET
+        version = excluded.version,
+        started_at = excluded.started_at,
+        ended_at = excluded.ended_at,
+        user_id = excluded.user_id,
+        git_repo = excluded.git_repo,
+        git_branch = excluded.git_branch,
+        prompt_count = excluded.prompt_count,
+        tool_call_count = excluded.tool_call_count,
+        api_call_count = excluded.api_call_count,
+        total_cost_usd = excluded.total_cost_usd,
+        total_input_tokens = excluded.total_input_tokens,
+        total_output_tokens = excluded.total_output_tokens,
+        lines_added = excluded.lines_added,
+        lines_removed = excluded.lines_removed,
+        models_used = excluded.models_used,
+        tools_used = excluded.tools_used,
+        files_touched = excluded.files_touched,
+        commit_count = excluded.commit_count,
+        updated_at = excluded.updated_at
+    `);
+
+    const transaction = this.db.transaction((traceRows: readonly ClickHouseSessionTraceRow[]) => {
+      for (const row of traceRows) {
+        upsert.run(
+          row.session_id,
+          row.version,
+          row.started_at,
+          row.ended_at,
+          row.user_id,
+          row.git_repo,
+          row.git_branch,
+          row.prompt_count,
+          row.tool_call_count,
+          row.api_call_count,
+          row.total_cost_usd,
+          row.total_input_tokens,
+          row.total_output_tokens,
+          row.lines_added,
+          row.lines_removed,
+          toJsonArray(row.models_used as string[]),
+          toJsonArray(row.tools_used as string[]),
+          toJsonArray(row.files_touched as string[]),
+          row.commit_count,
+          row.updated_at
+        );
+      }
+    });
+    transaction(rows);
+  }
+
+  public async queryJsonEachRow<TRow>(query: string): Promise<readonly TRow[]> {
+    const sqliteQuery = this.translateQuery(query);
+    const rawRows = this.db.prepare(sqliteQuery).all() as Record<string, unknown>[];
+    return rawRows.map((raw) => this.normalizeRow<TRow>(raw, query));
+  }
+
+  public async upsertSessions(rows: readonly PostgresSessionRow[]): Promise<void> {
+    if (rows.length === 0) return;
+
+    const insertUser = this.db.prepare("INSERT OR IGNORE INTO users (id) VALUES (?)");
+    const upsertSession = this.db.prepare(`
+      INSERT INTO sessions
+        (session_id, user_id, started_at, ended_at, status, project_path, git_repo, git_branch)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(session_id) DO UPDATE SET
+        user_id = excluded.user_id,
+        started_at = excluded.started_at,
+        ended_at = excluded.ended_at,
+        status = excluded.status,
+        project_path = excluded.project_path,
+        git_repo = excluded.git_repo,
+        git_branch = excluded.git_branch,
+        updated_at = datetime('now')
+    `);
+
+    const transaction = this.db.transaction((sessionRows: readonly PostgresSessionRow[]) => {
+      const userIds = new Set(sessionRows.map((r) => r.user_id));
+      for (const userId of userIds) {
+        insertUser.run(userId);
+      }
+      for (const row of sessionRows) {
+        upsertSession.run(
+          row.session_id, row.user_id, row.started_at, row.ended_at,
+          row.status, row.project_path, row.git_repo, row.git_branch
+        );
+      }
+    });
+    transaction(rows);
+  }
+
+  public async upsertCommits(rows: readonly PostgresCommitRow[]): Promise<void> {
+    if (rows.length === 0) return;
+
+    const upsert = this.db.prepare(`
+      INSERT INTO commits
+        (sha, session_id, prompt_id, message, lines_added, lines_removed, chain_cost_usd, committed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(sha) DO UPDATE SET
+        session_id = excluded.session_id,
+        prompt_id = excluded.prompt_id,
+        message = excluded.message,
+        lines_added = excluded.lines_added,
+        lines_removed = excluded.lines_removed,
+        chain_cost_usd = excluded.chain_cost_usd,
+        committed_at = excluded.committed_at
+    `);
+
+    const transaction = this.db.transaction((commitRows: readonly PostgresCommitRow[]) => {
+      for (const row of commitRows) {
+        upsert.run(
+          row.sha, row.session_id, row.prompt_id, row.message,
+          row.lines_added, row.lines_removed, row.chain_cost_usd, row.committed_at
+        );
+      }
+    });
+    transaction(rows);
+  }
+
+  public listCommitsBySessionId(sessionId: string): readonly PostgresCommitReadRow[] {
+    const rows = this.db.prepare(
+      "SELECT sha, session_id, prompt_id, message, lines_added, lines_removed, committed_at FROM commits WHERE session_id = ? ORDER BY committed_at ASC"
+    ).all(sessionId) as PostgresCommitReadRow[];
+    return rows;
+  }
+
+  public listSessionTraces(limit = 200): readonly ClickHouseSessionTraceRow[] {
+    const rows = this.db.prepare(
+      `SELECT * FROM session_traces ORDER BY updated_at DESC LIMIT ?`
+    ).all(limit) as Record<string, unknown>[];
+    return rows.map((raw) => ({
+      session_id: raw["session_id"] as string,
+      version: raw["version"] as number,
+      started_at: raw["started_at"] as string,
+      ended_at: (raw["ended_at"] as string | null) ?? null,
+      user_id: raw["user_id"] as string,
+      git_repo: (raw["git_repo"] as string | null) ?? null,
+      git_branch: (raw["git_branch"] as string | null) ?? null,
+      prompt_count: raw["prompt_count"] as number,
+      tool_call_count: raw["tool_call_count"] as number,
+      api_call_count: raw["api_call_count"] as number,
+      total_cost_usd: raw["total_cost_usd"] as number,
+      total_input_tokens: raw["total_input_tokens"] as number,
+      total_output_tokens: raw["total_output_tokens"] as number,
+      lines_added: raw["lines_added"] as number,
+      lines_removed: raw["lines_removed"] as number,
+      models_used: fromJsonArray(raw["models_used"]),
+      tools_used: fromJsonArray(raw["tools_used"]),
+      files_touched: fromJsonArray(raw["files_touched"]),
+      commit_count: raw["commit_count"] as number,
+      updated_at: raw["updated_at"] as string
+    }));
+  }
+
+  public listEventsBySessionId(sessionId: string, limit = 2000): readonly ClickHouseAgentEventReadRow[] {
+    const rows = this.db.prepare(
+      `SELECT event_id, event_type, event_timestamp, session_id, prompt_id,
+              tool_success, tool_name, tool_duration_ms, model, cost_usd,
+              input_tokens, output_tokens, attributes
+       FROM agent_events
+       WHERE session_id = ?
+       ORDER BY event_timestamp ASC
+       LIMIT ?`
+    ).all(sessionId, limit) as Record<string, unknown>[];
+    return rows.map((raw) => ({
+      event_id: raw["event_id"] as string,
+      event_type: raw["event_type"] as string,
+      event_timestamp: raw["event_timestamp"] as string,
+      session_id: raw["session_id"] as string,
+      prompt_id: (raw["prompt_id"] as string | null) ?? null,
+      tool_success: raw["tool_success"] as number | null,
+      tool_name: (raw["tool_name"] as string | null) ?? null,
+      tool_duration_ms: raw["tool_duration_ms"] as number | null,
+      model: (raw["model"] as string | null) ?? null,
+      cost_usd: raw["cost_usd"] as number | null,
+      input_tokens: raw["input_tokens"] as number | null,
+      output_tokens: raw["output_tokens"] as number | null,
+      attributes: fromJsonObject(raw["attributes"])
+    }));
+  }
+
+  public listDailyCosts(limit = 30): readonly { date: string; totalCostUsd: number; sessionCount: number }[] {
+    const rows = this.db.prepare(`
+      SELECT
+        substr(started_at, 1, 10) AS metric_date,
+        COUNT(DISTINCT session_id) AS sessions_count,
+        COALESCE(SUM(total_cost_usd), 0) AS total_cost_usd
+      FROM session_traces
+      GROUP BY metric_date
+      ORDER BY metric_date ASC
+      LIMIT ?
+    `).all(limit) as Record<string, unknown>[];
+    return rows.map((raw) => ({
+      date: raw["metric_date"] as string,
+      totalCostUsd: Number((raw["total_cost_usd"] as number) ?? 0),
+      sessionCount: Number((raw["sessions_count"] as number) ?? 0)
+    }));
+  }
+
+  public close(): void {
+    this.db.close();
+  }
+
+  private insertEvents(rows: readonly ClickHouseAgentEventRow[]): void {
+    const insert = this.db.prepare(`
+      INSERT INTO agent_events
+        (event_id, event_type, event_timestamp, session_id, prompt_id, user_id, source, agent_type,
+         tool_name, tool_success, tool_duration_ms, model, cost_usd, input_tokens, output_tokens,
+         api_duration_ms, lines_added, lines_removed, files_changed, commit_sha, attributes)
+      VALUES
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const transaction = this.db.transaction((eventRows: readonly ClickHouseAgentEventRow[]) => {
+      for (const row of eventRows) {
+        insert.run(
+          row.event_id, row.event_type, row.event_timestamp, row.session_id,
+          row.prompt_id, row.user_id, row.source, row.agent_type,
+          row.tool_name, row.tool_success, row.tool_duration_ms, row.model,
+          row.cost_usd, row.input_tokens, row.output_tokens, row.api_duration_ms,
+          row.lines_added, row.lines_removed,
+          toJsonArray(row.files_changed as string[]),
+          row.commit_sha,
+          JSON.stringify(row.attributes)
+        );
+      }
+    });
+    transaction(rows);
+  }
+
+  private translateQuery(query: string): string {
+    let q = query;
+    q = q.replace(/\bFINAL\b/g, "");
+    q = q.replace(/::jsonb/g, "");
+    return q.trim();
+  }
+
+  private normalizeRow<TRow>(raw: Record<string, unknown>, originalQuery: string): TRow {
+    const isSessionTrace = originalQuery.includes("session_traces");
+    const isEvent = originalQuery.includes("agent_events");
+    const isDailyCost = originalQuery.includes("daily_user_metrics") || originalQuery.includes("metric_date");
+
+    if (isSessionTrace) {
+      return {
+        ...raw,
+        models_used: fromJsonArray(raw["models_used"]),
+        tools_used: fromJsonArray(raw["tools_used"]),
+        files_touched: fromJsonArray(raw["files_touched"])
+      } as TRow;
+    }
+
+    if (isEvent) {
+      return {
+        ...raw,
+        attributes: fromJsonObject(raw["attributes"])
+      } as TRow;
+    }
+
+    if (isDailyCost) {
+      return raw as TRow;
+    }
+
+    return raw as TRow;
+  }
+}
+
+export function createSqliteClient(dbPath: string): SqliteClient {
+  return new SqliteClient(dbPath);
+}

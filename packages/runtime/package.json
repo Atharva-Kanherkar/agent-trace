@@ -6,6 +6,9 @@
   "license": "Apache-2.0",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
+  "bin": {
+    "agent-trace": "dist/src/cli.js"
+  },
   "scripts": {
     "clean": "node scripts/clean-deps.cjs && node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build:deps": "npm run --workspace @agent-trace/schema build && npm run --workspace @agent-trace/collector build && npm run --workspace @agent-trace/api build && npm run --workspace @agent-trace/cli build && npm run --workspace @agent-trace/platform build",

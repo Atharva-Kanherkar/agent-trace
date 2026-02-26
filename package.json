@@ -4,6 +4,9 @@
   "private": true,
   "description": "Self-hosted observability for agentic coding workflows.",
   "license": "Apache-2.0",
+  "bin": {
+    "agent-trace": "packages/runtime/dist/src/cli.js"
+  },
   "workspaces": [
     "packages/*"
   ],

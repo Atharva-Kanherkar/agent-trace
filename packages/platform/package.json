@@ -15,9 +15,11 @@
   },
   "dependencies": {
     "@clickhouse/client": "^1.17.0",
+    "better-sqlite3": "^12.6.2",
     "pg": "^8.18.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/pg": "^8.16.0"
   }
 }

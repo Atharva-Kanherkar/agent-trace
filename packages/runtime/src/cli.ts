@@ -1,8 +1,12 @@
 #!/usr/bin/env node
+import path from "node:path";
+import os from "node:os";
+import fs from "node:fs";
 import { createDatabaseBackedRuntime } from "./database-runtime";
 import { parseRuntimeDatabaseConfigFromEnv } from "./env";
 import { runRuntimeDatabaseMigrations } from "./migrations";
 import { createInMemoryRuntime, startInMemoryRuntimeServers, type InMemoryRuntime } from "./runtime";
+import { createSqliteBackedRuntime } from "./sqlite-runtime";
 import type { RuntimeStartedServers } from "./types";
 
 function readNumberEnv(name: string, fallback: number): number {
@@ -56,10 +60,21 @@ function readPrivacyTierEnv(name: string): 1 | 2 | 3 {
   return 2;
 }
 
+function resolveDefaultSqlitePath(): string {
+  const dataDir = path.join(os.homedir(), ".agent-trace");
+  fs.mkdirSync(dataDir, { recursive: true });
+  return path.join(dataDir, "data.db");
+}
+
+function hasArg(flag: string): boolean {
+  return process.argv.includes(flag);
+}
+
 async function main(): Promise<void> {
   const host = process.env["RUNTIME_HOST"] ?? "127.0.0.1";
   const collectorPort = readNumberEnv("COLLECTOR_PORT", 8317);
   const apiPort = readNumberEnv("API_PORT", 8318);
+  const dashboardPort = readNumberEnv("DASHBOARD_PORT", 3100);
   const serviceRole = readServiceRoleEnv("RUNTIME_SERVICE_ROLE");
   const enableCollectorServer = serviceRole !== "api";
   const enableApiServer = serviceRole !== "collector";
@@ -69,6 +84,9 @@ async function main(): Promise<void> {
   const startedAtMs = Date.now();
 
   const dbConfig = parseRuntimeDatabaseConfigFromEnv(process.env as Record<string, string | undefined>);
+  const sqlitePath = process.env["SQLITE_DB_PATH"] ?? resolveDefaultSqlitePath();
+  const standaloneMode = dbConfig === undefined && !hasArg("--no-sqlite");
+
   let migrationSummary:
     | {
         readonly clickHouseStatements: number;
@@ -76,11 +94,24 @@ async function main(): Promise<void> {
       }
     | undefined;
   let hydratedSessionTraces: number | undefined;
-  let runtimeHandle:
-    | { readonly mode: "in-memory"; readonly runtime: InMemoryRuntime; close(): Promise<void> }
-    | { readonly mode: "db-backed"; readonly runtime: InMemoryRuntime; close(): Promise<void> };
+  let runtimeHandle: {
+    readonly mode: "in-memory" | "db-backed" | "sqlite";
+    readonly runtime: InMemoryRuntime;
+    close(): Promise<void>;
+  };
 
-  if (dbConfig === undefined) {
+  if (standaloneMode) {
+    const sqliteRuntime = createSqliteBackedRuntime({
+      dbPath: sqlitePath,
+      startedAtMs
+    });
+    hydratedSessionTraces = sqliteRuntime.hydratedCount;
+    runtimeHandle = {
+      mode: "sqlite",
+      runtime: sqliteRuntime.runtime,
+      close: sqliteRuntime.close
+    };
+  } else if (dbConfig === undefined) {
     runtimeHandle = {
       mode: "in-memory",
       runtime: createInMemoryRuntime({
@@ -126,25 +157,66 @@ async function main(): Promise<void> {
     throw error;
   }
 
-  process.stdout.write(`runtime started\n`);
-  process.stdout.write(`mode=${runtimeHandle.mode}\n`);
-  process.stdout.write(`role=${serviceRole}\n`);
+  let dashboardAddress: string | undefined;
+  if (standaloneMode) {
+    try {
+      const dashboardModulePath = path.resolve(__dirname, "../../../dashboard/dist/src/web-server.js");
+      const dashboardModule = (await import(dashboardModulePath)) as {
+        startDashboardServer: (options: {
+          host?: string;
+          port?: number;
+          apiBaseUrl?: string;
+          startedAtMs?: number;
+        }) => Promise<{ address: string; apiBaseUrl: string; close(): Promise<void> }>;
+      };
+      const apiBaseUrl = `http://${host === "0.0.0.0" ? "127.0.0.1" : host}:${String(apiPort)}`;
+      const dashboard = await dashboardModule.startDashboardServer({
+        host,
+        port: dashboardPort,
+        apiBaseUrl,
+        startedAtMs
+      });
+      dashboardAddress = dashboard.address;
+
+      const originalShutdown = servers.close;
+      servers = {
+        ...servers,
+        close: async (): Promise<void> => {
+          await dashboard.close();
+          await originalShutdown();
+        }
+      };
+    } catch {
+      // dashboard is optional in standalone mode
+    }
+  }
+
+  process.stdout.write("\n");
+  process.stdout.write("  agent-trace\n");
+  process.stdout.write(`  mode: ${runtimeHandle.mode}\n`);
+  if (runtimeHandle.mode === "sqlite") {
+    process.stdout.write(`  database: ${sqlitePath}\n`);
+  }
   if (migrationSummary !== undefined) {
-    process.stdout.write(`migrations.clickhouse.statements=${String(migrationSummary.clickHouseStatements)}\n`);
-    process.stdout.write(`migrations.postgres.statements=${String(migrationSummary.postgresStatements)}\n`);
+    process.stdout.write(`  migrations: clickhouse=${String(migrationSummary.clickHouseStatements)} postgres=${String(migrationSummary.postgresStatements)}\n`);
   }
   if (hydratedSessionTraces !== undefined) {
-    process.stdout.write(`hydrated.session_traces=${String(hydratedSessionTraces)}\n`);
+    process.stdout.write(`  sessions loaded: ${String(hydratedSessionTraces)}\n`);
   }
+  process.stdout.write("\n");
   if (servers.collectorAddress !== undefined) {
-    process.stdout.write(`collector=${servers.collectorAddress}\n`);
+    process.stdout.write(`  collector  http://${servers.collectorAddress}\n`);
   }
   if (servers.apiAddress !== undefined) {
-    process.stdout.write(`api=${servers.apiAddress}\n`);
+    process.stdout.write(`  api        http://${servers.apiAddress}\n`);
   }
   if (servers.otelGrpcAddress !== undefined) {
-    process.stdout.write(`otelGrpc=${servers.otelGrpcAddress}\n`);
+    process.stdout.write(`  otel grpc  ${servers.otelGrpcAddress}\n`);
   }
+  if (dashboardAddress !== undefined) {
+    process.stdout.write(`  dashboard  http://${dashboardAddress}\n`);
+  }
+  process.stdout.write("\n");
 
   const shutdown = async (): Promise<void> => {
     await servers.close();
