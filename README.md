@@ -147,6 +147,43 @@ http://127.0.0.1:3100
 
 **Live updates.** Sessions stream in real-time via SSE. No manual refresh needed.
 
+## How Hooks Work
+
+agent-trace captures data from Claude Code via its [hooks system](https://docs.anthropic.com/en/docs/claude-code/hooks). When you run `agent-trace init`, it adds entries to `~/.claude/settings.json` that fire on these events:
+
+| Hook Event | What it captures |
+|------------|-----------------|
+| `SessionStart` | Session begins — baseline git state |
+| `PostToolUse` | Every tool call — Bash commands, file edits, reads, searches |
+| `SessionEnd` | Session ends — final git diff, total lines changed |
+| `Stop` | Graceful stop |
+| `TaskCompleted` | Task completion |
+
+Each hook pipes the event payload to `agent-trace hook-handler --forward`, which enriches it with git context (branch, commit SHA, diff stats, PR URLs) and forwards it to the collector.
+
+**What gets detected automatically:**
+
+- Git commits (SHA, message, lines added/removed)
+- Pull requests (repo, PR number, state: open/merged/closed/draft, URL)
+- Cost per event (model, input/output/cache tokens)
+- Files changed and tools used
+
+To verify hooks are installed:
+
+```bash
+npx agent-trace@latest status
+```
+
+To manually check `~/.claude/settings.json`:
+
+```bash
+cat ~/.claude/settings.json | grep agent-trace
+```
+
+If you don't see hook entries, re-run `npx agent-trace@latest init --privacy-tier 2` and restart Claude Code.
+
+---
+
 ## Privacy Tiers
 
 Control what gets stored. Set during init with `--privacy-tier <level>`:

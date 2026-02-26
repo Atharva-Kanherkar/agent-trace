@@ -156,10 +156,25 @@ function parseCommitMessage(command: string): string | undefined {
   return message;
 }
 
-function extractPrUrl(payload: HookPayload): string | undefined {
+function pickToolOutput(payload: HookPayload): string | undefined {
   const record = payload as Record<string, unknown>;
-  const output = readString(record, "tool_response") ?? readString(record, "toolResponse")
-    ?? readString(record, "stdout") ?? readString(record, "output");
+  // tool_response may be a plain string or an object { stdout, stderr }
+  const toolResponse = record["tool_response"] ?? record["toolResponse"];
+  if (typeof toolResponse === "string" && toolResponse.length > 0) {
+    return toolResponse;
+  }
+  if (typeof toolResponse === "object" && toolResponse !== null && !Array.isArray(toolResponse)) {
+    const nested = toolResponse as Record<string, unknown>;
+    const stdout = nested["stdout"];
+    if (typeof stdout === "string" && stdout.length > 0) {
+      return stdout;
+    }
+  }
+  return readString(record, "stdout") ?? readString(record, "output");
+}
+
+function extractPrUrl(payload: HookPayload): string | undefined {
+  const output = pickToolOutput(payload);
   const command = pickCommand(payload);
   const combined = [command, output].filter((s) => s !== undefined).join("\n");
   if (combined.length === 0) return undefined;
@@ -175,8 +190,7 @@ function extractPrState(payload: HookPayload): string | undefined {
   const explicit = readString(record, "pr_state") ?? readString(record, "prState");
   if (explicit !== undefined) return explicit;
 
-  const output = readString(record, "tool_response") ?? readString(record, "toolResponse")
-    ?? readString(record, "stdout") ?? readString(record, "output");
+  const output = pickToolOutput(payload);
   const command = pickCommand(payload);
   const combined = [command, output].filter((s) => s !== undefined).join("\n");
   if (combined.length === 0) return undefined;
@@ -212,8 +226,7 @@ function extractPrMergedAt(payload: HookPayload): string | undefined {
   const explicit = readString(record, "pr_merged_at") ?? readString(record, "prMergedAt");
   if (explicit !== undefined) return explicit;
 
-  const output = readString(record, "tool_response") ?? readString(record, "toolResponse")
-    ?? readString(record, "stdout") ?? readString(record, "output");
+  const output = pickToolOutput(payload);
   if (output === undefined) return undefined;
 
   const match = output.match(/"mergedAt"\s*:\s*"([^"]+)"/);
