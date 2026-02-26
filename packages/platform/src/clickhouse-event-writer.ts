@@ -163,6 +163,8 @@ export function toClickHouseAgentEventRow(event: PlatformEventEnvelope): ClickHo
     cost_usd: pickNumber(payload, "cost_usd", "costUsd") ?? null,
     input_tokens: pickNumber(payload, "input_tokens", "inputTokens") ?? null,
     output_tokens: pickNumber(payload, "output_tokens", "outputTokens") ?? null,
+    cache_read_tokens: pickNumber(payload, "cache_read_tokens", "cacheReadTokens") ?? pickNumber(payload, "cache_read_input_tokens", "cacheReadInputTokens") ?? null,
+    cache_write_tokens: pickNumber(payload, "cache_write_tokens", "cacheWriteTokens") ?? pickNumber(payload, "cache_creation_input_tokens", "cacheCreationInputTokens") ?? null,
     api_duration_ms: pickNumber(payload, "api_duration_ms", "apiDurationMs") ?? null,
     lines_added: pickNumber(payload, "lines_added", "linesAdded") ?? null,
     lines_removed: pickNumber(payload, "lines_removed", "linesRemoved") ?? null,

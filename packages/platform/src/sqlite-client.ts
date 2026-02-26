@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS agent_events (
   cost_usd REAL,
   input_tokens INTEGER,
   output_tokens INTEGER,
+  cache_read_tokens INTEGER,
+  cache_write_tokens INTEGER,
   api_duration_ms REAL,
   lines_added INTEGER,
   lines_removed INTEGER,
@@ -55,6 +57,8 @@ CREATE TABLE IF NOT EXISTS session_traces (
   total_cost_usd REAL NOT NULL DEFAULT 0,
   total_input_tokens INTEGER NOT NULL DEFAULT 0,
   total_output_tokens INTEGER NOT NULL DEFAULT 0,
+  total_cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+  total_cache_write_tokens INTEGER NOT NULL DEFAULT 0,
   lines_added INTEGER NOT NULL DEFAULT 0,
   lines_removed INTEGER NOT NULL DEFAULT 0,
   models_used TEXT NOT NULL DEFAULT '[]',
@@ -139,6 +143,7 @@ export class SqliteClient
     this.db.pragma("synchronous = NORMAL");
     this.migrateDeduplicateEvents();
     this.db.exec(SCHEMA_SQL);
+    this.migrateCacheTokenColumns();
     this.migrateRebuildBrokenTraces();
   }
 
@@ -157,10 +162,11 @@ export class SqliteClient
       INSERT INTO session_traces
         (session_id, version, started_at, ended_at, user_id, git_repo, git_branch,
          prompt_count, tool_call_count, api_call_count, total_cost_usd,
-         total_input_tokens, total_output_tokens, lines_added, lines_removed,
+         total_input_tokens, total_output_tokens, total_cache_read_tokens, total_cache_write_tokens,
+         lines_added, lines_removed,
          models_used, tools_used, files_touched, commit_count, updated_at)
       VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(session_id) DO UPDATE SET
         version = excluded.version,
         started_at = excluded.started_at,
@@ -174,6 +180,8 @@ export class SqliteClient
         total_cost_usd = excluded.total_cost_usd,
         total_input_tokens = excluded.total_input_tokens,
         total_output_tokens = excluded.total_output_tokens,
+        total_cache_read_tokens = excluded.total_cache_read_tokens,
+        total_cache_write_tokens = excluded.total_cache_write_tokens,
         lines_added = excluded.lines_added,
         lines_removed = excluded.lines_removed,
         models_used = excluded.models_used,
@@ -199,6 +207,8 @@ export class SqliteClient
           row.total_cost_usd,
           row.total_input_tokens,
           row.total_output_tokens,
+          row.total_cache_read_tokens,
+          row.total_cache_write_tokens,
           row.lines_added,
           row.lines_removed,
           toJsonArray(row.models_used as string[]),
@@ -305,6 +315,8 @@ export class SqliteClient
       total_cost_usd: raw["total_cost_usd"] as number,
       total_input_tokens: raw["total_input_tokens"] as number,
       total_output_tokens: raw["total_output_tokens"] as number,
+      total_cache_read_tokens: (raw["total_cache_read_tokens"] as number) ?? 0,
+      total_cache_write_tokens: (raw["total_cache_write_tokens"] as number) ?? 0,
       lines_added: raw["lines_added"] as number,
       lines_removed: raw["lines_removed"] as number,
       models_used: fromJsonArray(raw["models_used"]),
@@ -319,7 +331,7 @@ export class SqliteClient
     const rows = this.db.prepare(
       `SELECT event_id, event_type, event_timestamp, session_id, prompt_id,
               tool_success, tool_name, tool_duration_ms, model, cost_usd,
-              input_tokens, output_tokens, attributes
+              input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, attributes
        FROM agent_events
        WHERE session_id = ?
        ORDER BY event_timestamp ASC
@@ -338,6 +350,8 @@ export class SqliteClient
       cost_usd: raw["cost_usd"] as number | null,
       input_tokens: raw["input_tokens"] as number | null,
       output_tokens: raw["output_tokens"] as number | null,
+      cache_read_tokens: (raw["cache_read_tokens"] as number | null) ?? null,
+      cache_write_tokens: (raw["cache_write_tokens"] as number | null) ?? null,
       attributes: fromJsonObject(raw["attributes"])
     }));
   }
@@ -362,6 +376,34 @@ export class SqliteClient
 
   public close(): void {
     this.db.close();
+  }
+
+  /**
+   * Migration: add cache_read_tokens / cache_write_tokens columns to existing databases.
+   */
+  private migrateCacheTokenColumns(): void {
+    const addColumnIfMissing = (table: string, column: string, definition: string): void => {
+      const cols = this.db.prepare(`PRAGMA table_info('${table}')`).all() as { name: string }[];
+      if (!cols.some((c) => c.name === column)) {
+        this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+      }
+    };
+
+    const eventsExist = this.db.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='agent_events'"
+    ).get();
+    if (eventsExist !== undefined) {
+      addColumnIfMissing("agent_events", "cache_read_tokens", "INTEGER");
+      addColumnIfMissing("agent_events", "cache_write_tokens", "INTEGER");
+    }
+
+    const tracesExist = this.db.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='session_traces'"
+    ).get();
+    if (tracesExist !== undefined) {
+      addColumnIfMissing("session_traces", "total_cache_read_tokens", "INTEGER NOT NULL DEFAULT 0");
+      addColumnIfMissing("session_traces", "total_cache_write_tokens", "INTEGER NOT NULL DEFAULT 0");
+    }
   }
 
   /**
@@ -432,6 +474,8 @@ export class SqliteClient
         cost_usd REAL,
         input_tokens INTEGER,
         output_tokens INTEGER,
+        cache_read_tokens INTEGER,
+        cache_write_tokens INTEGER,
         api_duration_ms REAL,
         lines_added INTEGER,
         lines_removed INTEGER,
@@ -506,7 +550,8 @@ export class SqliteClient
       INSERT OR REPLACE INTO session_traces
         (session_id, version, started_at, ended_at, user_id, git_repo, git_branch,
          prompt_count, tool_call_count, api_call_count, total_cost_usd,
-         total_input_tokens, total_output_tokens, lines_added, lines_removed,
+         total_input_tokens, total_output_tokens, total_cache_read_tokens, total_cache_write_tokens,
+         lines_added, lines_removed,
          models_used, tools_used, files_touched, commit_count, updated_at)
       SELECT
         session_id,
@@ -522,6 +567,8 @@ export class SqliteClient
         COALESCE(SUM(cost_usd), 0),
         COALESCE(SUM(input_tokens), 0),
         COALESCE(SUM(output_tokens), 0),
+        COALESCE(SUM(cache_read_tokens), 0),
+        COALESCE(SUM(cache_write_tokens), 0),
         COALESCE(SUM(lines_added), 0),
         COALESCE(SUM(lines_removed), 0),
         '[]',
@@ -573,9 +620,10 @@ export class SqliteClient
       INSERT OR IGNORE INTO agent_events
         (event_id, event_type, event_timestamp, session_id, prompt_id, user_id, source, agent_type,
          tool_name, tool_success, tool_duration_ms, model, cost_usd, input_tokens, output_tokens,
+         cache_read_tokens, cache_write_tokens,
          api_duration_ms, lines_added, lines_removed, files_changed, commit_sha, attributes)
       VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const transaction = this.db.transaction((eventRows: readonly ClickHouseAgentEventRow[]) => {
@@ -584,7 +632,9 @@ export class SqliteClient
           row.event_id, row.event_type, row.event_timestamp, row.session_id,
           row.prompt_id, row.user_id, row.source, row.agent_type,
           row.tool_name, row.tool_success, row.tool_duration_ms, row.model,
-          row.cost_usd, row.input_tokens, row.output_tokens, row.api_duration_ms,
+          row.cost_usd, row.input_tokens, row.output_tokens,
+          row.cache_read_tokens, row.cache_write_tokens,
+          row.api_duration_ms,
           row.lines_added, row.lines_removed,
           toJsonArray(row.files_changed as string[]),
           row.commit_sha,

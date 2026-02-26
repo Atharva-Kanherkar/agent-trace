@@ -132,6 +132,8 @@ function toTimelineEvent(envelope: RuntimeEnvelope): TimelineEvent {
   const payload = asRecord(envelope.payload);
   const inputTokens = readNumber(payload, ["input_tokens", "inputTokens"]);
   const outputTokens = readNumber(payload, ["output_tokens", "outputTokens"]);
+  const cacheReadTokens = readNumber(payload, ["cache_read_tokens", "cacheReadTokens", "cache_read_input_tokens"]);
+  const cacheWriteTokens = readNumber(payload, ["cache_write_tokens", "cacheWriteTokens", "cache_creation_input_tokens"]);
   const costUsd = computeEventCost(payload);
   const details = buildNormalizedDetails(envelope.payload);
 
@@ -145,7 +147,9 @@ function toTimelineEvent(envelope: RuntimeEnvelope): TimelineEvent {
       ? {
           tokens: {
             input: inputTokens,
-            output: outputTokens
+            output: outputTokens,
+            ...(cacheReadTokens !== undefined ? { cacheRead: cacheReadTokens } : {}),
+            ...(cacheWriteTokens !== undefined ? { cacheWrite: cacheWriteTokens } : {})
           }
         }
       : {}),
@@ -181,6 +185,8 @@ function toBaseTrace(envelope: RuntimeEnvelope): AgentSessionTrace {
       totalCostUsd: 0,
       totalInputTokens: 0,
       totalOutputTokens: 0,
+      totalCacheReadTokens: 0,
+      totalCacheWriteTokens: 0,
       linesAdded: 0,
       linesRemoved: 0,
       filesTouched: [],
@@ -234,6 +240,8 @@ function toUpdatedTrace(existing: AgentSessionTrace, envelope: RuntimeEnvelope):
   const cost = computeEventCost(payload) ?? 0;
   const inputTokens = readNumber(payload, ["input_tokens", "inputTokens"]) ?? 0;
   const outputTokens = readNumber(payload, ["output_tokens", "outputTokens"]) ?? 0;
+  const cacheReadTokens = readNumber(payload, ["cache_read_tokens", "cacheReadTokens", "cache_read_input_tokens"]) ?? 0;
+  const cacheWriteTokens = readNumber(payload, ["cache_write_tokens", "cacheWriteTokens", "cache_creation_input_tokens"]) ?? 0;
   const linesAdded = readNumber(payload, ["lines_added", "linesAdded"]) ?? 0;
   const linesRemoved = readNumber(payload, ["lines_removed", "linesRemoved"]) ?? 0;
 
@@ -295,6 +303,8 @@ function toUpdatedTrace(existing: AgentSessionTrace, envelope: RuntimeEnvelope):
       totalCostUsd: Number((existing.metrics.totalCostUsd + cost).toFixed(6)),
       totalInputTokens: existing.metrics.totalInputTokens + inputTokens,
       totalOutputTokens: existing.metrics.totalOutputTokens + outputTokens,
+      totalCacheReadTokens: existing.metrics.totalCacheReadTokens + cacheReadTokens,
+      totalCacheWriteTokens: existing.metrics.totalCacheWriteTokens + cacheWriteTokens,
       linesAdded: existing.metrics.linesAdded + linesAdded,
       linesRemoved: existing.metrics.linesRemoved + linesRemoved,
       filesTouched,

@@ -32,6 +32,8 @@ export interface UiSessionReplayEvent {
   readonly toolDurationMs?: number;
   readonly inputTokens?: number;
   readonly outputTokens?: number;
+  readonly cacheReadTokens?: number;
+  readonly cacheWriteTokens?: number;
   readonly detail?: string;
   readonly details?: Readonly<Record<string, unknown>>;
   readonly tokens?: Readonly<Record<string, unknown>>;
@@ -50,6 +52,8 @@ export interface UiSessionReplayMetrics {
   readonly totalCostUsd: number;
   readonly totalInputTokens: number;
   readonly totalOutputTokens: number;
+  readonly totalCacheReadTokens: number;
+  readonly totalCacheWriteTokens: number;
   readonly linesAdded: number;
   readonly linesRemoved: number;
   readonly modelsUsed: readonly string[];

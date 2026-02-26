@@ -68,6 +68,8 @@ export function toClickHouseSessionTraceRow(
     total_cost_usd: Number.isFinite(trace.metrics.totalCostUsd) ? trace.metrics.totalCostUsd : 0,
     total_input_tokens: toNonNegativeInteger(trace.metrics.totalInputTokens),
     total_output_tokens: toNonNegativeInteger(trace.metrics.totalOutputTokens),
+    total_cache_read_tokens: toNonNegativeInteger(trace.metrics.totalCacheReadTokens),
+    total_cache_write_tokens: toNonNegativeInteger(trace.metrics.totalCacheWriteTokens),
     lines_added: Math.trunc(trace.metrics.linesAdded),
     lines_removed: Math.trunc(trace.metrics.linesRemoved),
     models_used: toUniqueStringArray(trace.metrics.modelsUsed),

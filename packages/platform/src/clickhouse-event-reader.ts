@@ -17,6 +17,8 @@ const EVENT_SELECT_COLUMNS = [
   "cost_usd",
   "input_tokens",
   "output_tokens",
+  "cache_read_tokens",
+  "cache_write_tokens",
   "attributes"
 ].join(", ");
 
@@ -85,6 +87,8 @@ export function toTimelineEventFromClickHouseRow(row: ClickHouseAgentEventReadRo
   const costUsd = toNumber(row.cost_usd);
   const inputTokens = toNumber(row.input_tokens);
   const outputTokens = toNumber(row.output_tokens);
+  const cacheReadTokens = toNumber(row.cache_read_tokens);
+  const cacheWriteTokens = toNumber(row.cache_write_tokens);
   const status = readStatus(row);
 
   const details: Record<string, unknown> = {};
@@ -154,7 +158,9 @@ export function toTimelineEventFromClickHouseRow(row: ClickHouseAgentEventReadRo
       ? {
           tokens: {
             input: inputTokens,
-            output: outputTokens
+            output: outputTokens,
+            ...(cacheReadTokens !== undefined ? { cacheRead: cacheReadTokens } : {}),
+            ...(cacheWriteTokens !== undefined ? { cacheWrite: cacheWriteTokens } : {})
           }
         }
       : {}),

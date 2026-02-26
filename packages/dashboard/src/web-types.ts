@@ -63,6 +63,8 @@ export interface DashboardSessionReplay {
     readonly totalCostUsd: number;
     readonly totalInputTokens: number;
     readonly totalOutputTokens: number;
+    readonly totalCacheReadTokens: number;
+    readonly totalCacheWriteTokens: number;
     readonly linesAdded: number;
     readonly linesRemoved: number;
     readonly modelsUsed: readonly string[];

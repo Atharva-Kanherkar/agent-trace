@@ -19,6 +19,8 @@ export interface ClickHouseAgentEventRow {
   readonly cost_usd: number | null;
   readonly input_tokens: number | null;
   readonly output_tokens: number | null;
+  readonly cache_read_tokens: number | null;
+  readonly cache_write_tokens: number | null;
   readonly api_duration_ms: number | null;
   readonly lines_added: number | null;
   readonly lines_removed: number | null;
@@ -40,6 +42,8 @@ export interface ClickHouseAgentEventReadRow {
   readonly cost_usd: number | string | null;
   readonly input_tokens: number | string | null;
   readonly output_tokens: number | string | null;
+  readonly cache_read_tokens: number | string | null;
+  readonly cache_write_tokens: number | string | null;
   readonly attributes: Readonly<Record<string, string>>;
 }
 
@@ -57,6 +61,8 @@ export interface ClickHouseSessionTraceRow {
   readonly total_cost_usd: number;
   readonly total_input_tokens: number;
   readonly total_output_tokens: number;
+  readonly total_cache_read_tokens: number;
+  readonly total_cache_write_tokens: number;
   readonly lines_added: number;
   readonly lines_removed: number;
   readonly models_used: readonly string[];

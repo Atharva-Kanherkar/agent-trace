@@ -246,6 +246,8 @@ async function fetchSessionReplayFromApi(
       totalCostUsd: typeof metrics["totalCostUsd"] === "number" ? metrics["totalCostUsd"] : 0,
       totalInputTokens: typeof metrics["totalInputTokens"] === "number" ? metrics["totalInputTokens"] : 0,
       totalOutputTokens: typeof metrics["totalOutputTokens"] === "number" ? metrics["totalOutputTokens"] : 0,
+      totalCacheReadTokens: typeof metrics["totalCacheReadTokens"] === "number" ? metrics["totalCacheReadTokens"] : 0,
+      totalCacheWriteTokens: typeof metrics["totalCacheWriteTokens"] === "number" ? metrics["totalCacheWriteTokens"] : 0,
       linesAdded: typeof metrics["linesAdded"] === "number" ? metrics["linesAdded"] : 0,
       linesRemoved: typeof metrics["linesRemoved"] === "number" ? metrics["linesRemoved"] : 0,
       modelsUsed,

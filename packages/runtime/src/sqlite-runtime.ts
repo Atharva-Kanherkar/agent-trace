@@ -120,7 +120,9 @@ function hydrateFromSqlite(runtime: InMemoryRuntime, sqlite: SqliteClient, limit
       const recalculated = calculateCostUsd({
         model,
         inputTokens: hydratedTrace.metrics.totalInputTokens,
-        outputTokens: hydratedTrace.metrics.totalOutputTokens
+        outputTokens: hydratedTrace.metrics.totalOutputTokens,
+        cacheReadTokens: hydratedTrace.metrics.totalCacheReadTokens,
+        cacheWriteTokens: hydratedTrace.metrics.totalCacheWriteTokens
       });
       if (recalculated > 0) {
         hydratedTrace = {

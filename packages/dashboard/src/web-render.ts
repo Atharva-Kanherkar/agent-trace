@@ -223,10 +223,10 @@ function parseReplay(val) {
     var ev=asRec(e);if(!ev)return null;
     var id=readStr(ev,'id'),type=readStr(ev,'type'),ts=readStr(ev,'timestamp');if(!id||!type||!ts)return null;
     var d=asRec(ev.details),tok=asRec(ev.tokens);
-    return{id:id,type:type,timestamp:ts,promptId:readStr(ev,'promptId'),status:readStr(ev,'status'),costUsd:readNum(ev,'costUsd'),toolName:d?readStr(d,'toolName'):undefined,toolDurationMs:d?readNum(d,'toolDurationMs'):undefined,inputTokens:tok?readNum(tok,'input'):undefined,outputTokens:tok?readNum(tok,'output'):undefined,details:d};
+    return{id:id,type:type,timestamp:ts,promptId:readStr(ev,'promptId'),status:readStr(ev,'status'),costUsd:readNum(ev,'costUsd'),toolName:d?readStr(d,'toolName'):undefined,toolDurationMs:d?readNum(d,'toolDurationMs'):undefined,inputTokens:tok?readNum(tok,'input'):undefined,outputTokens:tok?readNum(tok,'output'):undefined,cacheReadTokens:tok?readNum(tok,'cacheRead'):undefined,cacheWriteTokens:tok?readNum(tok,'cacheWrite'):undefined,details:d};
   }).filter(Boolean);
   return{sessionId:sid,startedAt:sa,endedAt:readStr(r,'endedAt'),gitBranch:gitBranch,
-    metrics:{promptCount:readNum(m,'promptCount')||0,toolCallCount:readNum(m,'toolCallCount')||0,totalCostUsd:readNum(m,'totalCostUsd')||0,totalInputTokens:readNum(m,'totalInputTokens')||0,totalOutputTokens:readNum(m,'totalOutputTokens')||0,linesAdded:readNum(m,'linesAdded')||0,linesRemoved:readNum(m,'linesRemoved')||0,modelsUsed:readArr(m,'modelsUsed').filter(function(x){return typeof x==='string'}),toolsUsed:readArr(m,'toolsUsed').filter(function(x){return typeof x==='string'}),filesTouched:readArr(m,'filesTouched').filter(function(x){return typeof x==='string'})},
+    metrics:{promptCount:readNum(m,'promptCount')||0,toolCallCount:readNum(m,'toolCallCount')||0,totalCostUsd:readNum(m,'totalCostUsd')||0,totalInputTokens:readNum(m,'totalInputTokens')||0,totalOutputTokens:readNum(m,'totalOutputTokens')||0,totalCacheReadTokens:readNum(m,'totalCacheReadTokens')||0,totalCacheWriteTokens:readNum(m,'totalCacheWriteTokens')||0,linesAdded:readNum(m,'linesAdded')||0,linesRemoved:readNum(m,'linesRemoved')||0,modelsUsed:readArr(m,'modelsUsed').filter(function(x){return typeof x==='string'}),toolsUsed:readArr(m,'toolsUsed').filter(function(x){return typeof x==='string'}),filesTouched:readArr(m,'filesTouched').filter(function(x){return typeof x==='string'})},
     commits:commits,pullRequests:prs,timeline:timeline};
 }
 
@@ -296,7 +296,7 @@ function buildPromptGroups(timeline, commits) {
     map[ev.promptId].push(ev);
   });
   return order.map(function(pid){
-    var evts = map[pid] || [], promptText, responseText, cost=0,tools=0,inTok=0,outTok=0,dur=0;
+    var evts = map[pid] || [], promptText, responseText, cost=0,tools=0,inTok=0,outTok=0,cacheRTok=0,cacheWTok=0,dur=0;
     var filesR={},filesW={},toolEvts=[];
     evts.forEach(function(ev){
       var d = ev.details;
@@ -304,7 +304,7 @@ function buildPromptGroups(timeline, commits) {
       if(ev.type==='assistant_response'||ev.type==='api_call'||ev.type==='api_response'){
         if(d){var rt=readStr(d,'responseText')||readStr(d,'lastAssistantMessage');if(rt)responseText=rt;}
       }
-      cost+=(ev.costUsd||0);inTok+=(ev.inputTokens||0);outTok+=(ev.outputTokens||0);
+      cost+=(ev.costUsd||0);inTok+=(ev.inputTokens||0);outTok+=(ev.outputTokens||0);cacheRTok+=(ev.cacheReadTokens||0);cacheWTok+=(ev.cacheWriteTokens||0);
       if(ev.toolName||(ev.type==='tool_call'||ev.type==='tool_result')){
         toolEvts.push(ev);tools++;dur+=(ev.toolDurationMs||0);
         var dd=ev.details,rti=dd?(dd.toolInput||dd.tool_input):undefined,inp=asRec(rti),tiStr=typeof rti==='string'?rti:undefined;
@@ -325,7 +325,7 @@ function buildPromptGroups(timeline, commits) {
       }
       deduped.push(ev);
     });
-    return{promptId:pid,promptText:promptText,responseText:responseText,toolEvents:deduped,commits:byPrompt[pid]||[],totalCostUsd:cost,totalToolCalls:tools,totalInputTokens:inTok,totalOutputTokens:outTok,totalDurationMs:dur,filesRead:Object.keys(filesR),filesWritten:Object.keys(filesW)};
+    return{promptId:pid,promptText:promptText,responseText:responseText,toolEvents:deduped,commits:byPrompt[pid]||[],totalCostUsd:cost,totalToolCalls:tools,totalInputTokens:inTok,totalOutputTokens:outTok,totalCacheReadTokens:cacheRTok,totalCacheWriteTokens:cacheWTok,totalDurationMs:dur,filesRead:Object.keys(filesR),filesWritten:Object.keys(filesW)};
   }).filter(function(g){return g.promptText||g.toolEvents.length>0||g.responseText;});
 }
 
@@ -448,6 +448,7 @@ function renderReplay() {
   h += '<div class="tm">';
   h += '<span class="tmi">Cost <span class="badge orange">' + fmt$4(replay.metrics.totalCostUsd) + '</span></span>';
   h += '<span class="tmi">Tokens <span class="badge cyan">' + replay.metrics.totalInputTokens + ' in / ' + replay.metrics.totalOutputTokens + ' out</span></span>';
+  if (replay.metrics.totalCacheReadTokens > 0 || replay.metrics.totalCacheWriteTokens > 0) h += '<span class="tmi">Cache <span class="badge purple">' + replay.metrics.totalCacheReadTokens + ' read / ' + replay.metrics.totalCacheWriteTokens + ' write</span></span>';
   if (replay.metrics.linesAdded > 0 || replay.metrics.linesRemoved > 0) h += '<span class="tmi">Lines <span class="badge green">+' + replay.metrics.linesAdded + '</span> <span class="badge red">-' + replay.metrics.linesRemoved + '</span></span>';
   if (replay.metrics.modelsUsed.length > 0) h += '<span class="tmi">' + esc(replay.metrics.modelsUsed.join(', ')) + '</span>';
   if (replay.metrics.filesTouched.length > 0) h += '<span class="tmi">' + replay.metrics.filesTouched.length + ' files</span>';

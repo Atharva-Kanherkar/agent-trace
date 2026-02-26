@@ -37,6 +37,8 @@ export interface EventEnvelope<TPayload = unknown> {
 export interface TimelineTokenUsage {
   readonly input: number;
   readonly output: number;
+  readonly cacheRead?: number;
+  readonly cacheWrite?: number;
 }
 
 export interface TimelineEvent {
@@ -58,6 +60,8 @@ export interface SessionMetrics {
   readonly totalCostUsd: number;
   readonly totalInputTokens: number;
   readonly totalOutputTokens: number;
+  readonly totalCacheReadTokens: number;
+  readonly totalCacheWriteTokens: number;
   readonly linesAdded: number;
   readonly linesRemoved: number;
   readonly filesTouched: readonly string[];

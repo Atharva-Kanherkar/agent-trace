@@ -158,6 +158,8 @@ function parseReplayEvent(value: unknown): UiSessionReplayEvent | undefined {
   const tokens = asRecord(record["tokens"]);
   const inputTokens = tokens === undefined ? undefined : readNumber(tokens, "input");
   const outputTokens = tokens === undefined ? undefined : readNumber(tokens, "output");
+  const cacheReadTokens = tokens === undefined ? undefined : readNumber(tokens, "cacheRead");
+  const cacheWriteTokens = tokens === undefined ? undefined : readNumber(tokens, "cacheWrite");
   const details = asRecord(record["details"]);
   const toolName = details === undefined ? undefined : readString(details, "toolName");
   const toolDurationMs = details === undefined ? undefined : readNumber(details, "toolDurationMs");
@@ -174,6 +176,8 @@ function parseReplayEvent(value: unknown): UiSessionReplayEvent | undefined {
     ...(toolDurationMs !== undefined ? { toolDurationMs } : {}),
     ...(inputTokens !== undefined ? { inputTokens } : {}),
     ...(outputTokens !== undefined ? { outputTokens } : {}),
+    ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
+    ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {}),
     ...(detail !== undefined ? { detail } : {}),
     ...(details !== undefined ? { details } : {}),
     ...(tokens !== undefined ? { tokens } : {})
@@ -265,6 +269,8 @@ export async function fetchSessionReplay(sessionId: string): Promise<UiSessionRe
       totalCostUsd: readNumber(metricsRecord, "totalCostUsd") ?? 0,
       totalInputTokens: readNumber(metricsRecord, "totalInputTokens") ?? 0,
       totalOutputTokens: readNumber(metricsRecord, "totalOutputTokens") ?? 0,
+      totalCacheReadTokens: readNumber(metricsRecord, "totalCacheReadTokens") ?? 0,
+      totalCacheWriteTokens: readNumber(metricsRecord, "totalCacheWriteTokens") ?? 0,
       linesAdded: readNumber(metricsRecord, "linesAdded") ?? 0,
       linesRemoved: readNumber(metricsRecord, "linesRemoved") ?? 0,
       modelsUsed: readStringArray(metricsRecord, "modelsUsed"),

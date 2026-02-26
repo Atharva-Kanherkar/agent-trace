@@ -75,6 +75,8 @@ interface PromptGroup {
   readonly totalToolCalls: number;
   readonly totalInputTokens: number;
   readonly totalOutputTokens: number;
+  readonly totalCacheReadTokens: number;
+  readonly totalCacheWriteTokens: number;
   readonly totalDurationMs: number;
   readonly filesRead: readonly string[];
   readonly filesWritten: readonly string[];
@@ -309,6 +311,8 @@ function parseReplay(value: unknown): UiSessionReplay | undefined {
       totalCostUsd: readNumber(metrics, "totalCostUsd") ?? 0,
       totalInputTokens: readNumber(metrics, "totalInputTokens") ?? 0,
       totalOutputTokens: readNumber(metrics, "totalOutputTokens") ?? 0,
+      totalCacheReadTokens: readNumber(metrics, "totalCacheReadTokens") ?? 0,
+      totalCacheWriteTokens: readNumber(metrics, "totalCacheWriteTokens") ?? 0,
       linesAdded: readNumber(metrics, "linesAdded") ?? 0,
       linesRemoved: readNumber(metrics, "linesRemoved") ?? 0,
       modelsUsed: readStringArray(metrics, "modelsUsed"),
@@ -331,6 +335,8 @@ function parseReplay(value: unknown): UiSessionReplay | undefined {
         const tokens = asRecord(event["tokens"]);
         const inputTokens = tokens === undefined ? undefined : readNumber(tokens, "input");
         const outputTokens = tokens === undefined ? undefined : readNumber(tokens, "output");
+        const cacheReadTokens = tokens === undefined ? undefined : readNumber(tokens, "cacheRead");
+        const cacheWriteTokens = tokens === undefined ? undefined : readNumber(tokens, "cacheWrite");
         return {
           id, type, timestamp,
           ...(readString(event, "promptId") !== undefined ? { promptId: readString(event, "promptId") } : {}),
@@ -340,6 +346,8 @@ function parseReplay(value: unknown): UiSessionReplay | undefined {
           ...(toolDurationMs !== undefined ? { toolDurationMs } : {}),
           ...(inputTokens !== undefined ? { inputTokens } : {}),
           ...(outputTokens !== undefined ? { outputTokens } : {}),
+          ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
+          ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {}),
           ...(details !== undefined ? { details } : {})
         };
       })
@@ -454,6 +462,8 @@ function buildPromptGroups(timeline: readonly UiSessionReplayEvent[], commits: r
     let totalToolCalls = 0;
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
+    let totalCacheReadTokens = 0;
+    let totalCacheWriteTokens = 0;
     let totalDurationMs = 0;
     const filesReadSet = new Set<string>();
     const filesWrittenSet = new Set<string>();
@@ -472,6 +482,8 @@ function buildPromptGroups(timeline: readonly UiSessionReplayEvent[], commits: r
       totalCostUsd += event.costUsd ?? 0;
       totalInputTokens += event.inputTokens ?? 0;
       totalOutputTokens += event.outputTokens ?? 0;
+      totalCacheReadTokens += event.cacheReadTokens ?? 0;
+      totalCacheWriteTokens += event.cacheWriteTokens ?? 0;
 
       if (isToolEvent(event)) {
         toolEventsRaw.push(event);
@@ -496,7 +508,7 @@ function buildPromptGroups(timeline: readonly UiSessionReplayEvent[], commits: r
     return {
       promptId, promptText, responseText, toolEvents,
       commits: commitsByPrompt.get(promptId) ?? [],
-      totalCostUsd, totalToolCalls, totalInputTokens, totalOutputTokens, totalDurationMs,
+      totalCostUsd, totalToolCalls, totalInputTokens, totalOutputTokens, totalCacheReadTokens, totalCacheWriteTokens, totalDurationMs,
       filesRead: [...filesReadSet], filesWritten: [...filesWrittenSet]
     };
   });
@@ -1047,6 +1059,13 @@ export function DashboardShell(props: DashboardShellProps): ReactElement {
                     {String(sessionReplay.metrics.totalInputTokens)} in / {String(sessionReplay.metrics.totalOutputTokens)} out
                   </span>
                 </span>
+                {(sessionReplay.metrics.totalCacheReadTokens > 0 || sessionReplay.metrics.totalCacheWriteTokens > 0) && (
+                  <span className="timeline-meta-item">
+                    Cache <span className="badge purple">
+                      {String(sessionReplay.metrics.totalCacheReadTokens)} read / {String(sessionReplay.metrics.totalCacheWriteTokens)} write
+                    </span>
+                  </span>
+                )}
                 {(sessionReplay.metrics.linesAdded > 0 || sessionReplay.metrics.linesRemoved > 0) && (
                   <span className="timeline-meta-item">
                     Lines <span className="badge green">+{String(sessionReplay.metrics.linesAdded)}</span>
