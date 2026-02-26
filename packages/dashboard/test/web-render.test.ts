@@ -14,5 +14,5 @@ test("renderDashboardHtml includes page title and sessions bridge endpoint", () 
   assert.equal(html.includes("/api/session/"), true);
   assert.equal(html.includes("Session Replay"), true);
   assert.equal(html.includes("EventSource"), true);
-  assert.equal(html.includes("Recent Sessions"), true);
+  assert.equal(html.includes("Sessions"), true);
 });

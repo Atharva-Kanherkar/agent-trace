@@ -410,6 +410,22 @@ export async function startDashboardServer(
       return;
     }
 
+    if (pathname === "/api/analytics/cost/daily") {
+      void fetch(`${apiBaseUrl}/v1/analytics/cost/daily`)
+        .then(async (apiResponse) => {
+          if (!apiResponse.ok) {
+            sendJson(res, 502, { status: "error", message: `api returned status ${String(apiResponse.status)}` });
+            return;
+          }
+          const payload = await apiResponse.json();
+          sendJson(res, 200, payload);
+        })
+        .catch((error: unknown) => {
+          sendJson(res, 502, { status: "error", message: `failed to fetch daily cost: ${String(error)}` });
+        });
+      return;
+    }
+
     if (segments.length === 3 && segments[0] === "api" && segments[1] === "session") {
       const encodedSessionId = segments[2];
       let sessionId = "";

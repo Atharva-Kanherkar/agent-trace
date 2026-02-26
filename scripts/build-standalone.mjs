@@ -15,9 +15,7 @@ await build({
   format: "cjs",
   outfile: path.join(outDir, "agent-trace.cjs"),
   external: [
-    "better-sqlite3",
-    "@grpc/grpc-js",
-    "@grpc/proto-loader"
+    "better-sqlite3"
   ],
   banner: {
     js: "#!/usr/bin/env node"
@@ -34,7 +32,7 @@ fs.chmodSync(path.join(outDir, "agent-trace.cjs"), 0o755);
 
 const pkg = {
   name: "agent-trace",
-  version: "0.1.0",
+  version: "0.2.3",
   description: "Self-hosted observability for AI coding agents. One command, zero config.",
   license: "Apache-2.0",
   bin: {

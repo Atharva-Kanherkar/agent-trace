@@ -1,7 +1,13 @@
 /**
  * Standalone entry point for `npx agent-trace`.
- * Bundles collector, api, dashboard, and sqlite into a single process.
+ * Bundles collector, api, dashboard, sqlite, AND cli into a single process.
  * This file is the esbuild entry point — all imports are resolved statically.
+ *
+ * Subcommands:
+ *   (none) / start  — start the server (collector + api + dashboard + sqlite)
+ *   init             — configure Claude Code hooks
+ *   status           — check if hooks are installed
+ *   hook-handler     — process a hook event from stdin (called by Claude Code)
  */
 import path from "node:path";
 import os from "node:os";
@@ -10,6 +16,16 @@ import { startDashboardServer } from "../../dashboard/src/web-server";
 import { createSqliteBackedRuntime, type SqliteRuntimeHandle } from "./sqlite-runtime";
 import { createInMemoryRuntime, startInMemoryRuntimeServers, type InMemoryRuntime } from "./runtime";
 import type { RuntimeStartedServers } from "./types";
+
+// CLI modules — esbuild bundles these statically
+import { parseArgs } from "../../cli/src/args";
+import { runInit } from "../../cli/src/init";
+import { runStatus } from "../../cli/src/status";
+import { runHookHandler, runHookHandlerAndForward } from "../../cli/src/hook-handler";
+
+// ---------------------------------------------------------------------------
+// Server helpers
+// ---------------------------------------------------------------------------
 
 function readNumberEnv(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -32,7 +48,100 @@ function resolveDefaultSqlitePath(): string {
   return path.join(dataDir, "data.db");
 }
 
-async function main(): Promise<void> {
+// ---------------------------------------------------------------------------
+// CLI helpers
+// ---------------------------------------------------------------------------
+
+async function readStdin(): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    let buffer = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (chunk) => {
+      buffer += chunk;
+    });
+    process.stdin.on("end", () => resolve(buffer));
+    process.stdin.on("error", (error) => reject(error));
+  });
+}
+
+function printUsage(): void {
+  process.stdout.write(
+    "\nusage: agent-trace <command>\n\n" +
+    "commands:\n" +
+    "  (none)        start the server (collector + api + dashboard)\n" +
+    "  init          configure Claude Code hooks\n" +
+    "  status        check if hooks are installed\n" +
+    "  hook-handler  process a hook event from stdin\n\n" +
+    "options:\n" +
+    "  --collector-url <url>    collector endpoint (default: http://127.0.0.1:8317/v1/hooks)\n" +
+    "  --privacy-tier <1|2|3>   privacy tier (default: 2)\n" +
+    "  --install-hooks          install hooks into Claude settings (default for init)\n" +
+    "  --no-install-hooks       skip hook installation\n" +
+    "  --forward                forward hook event to collector (hook-handler)\n" +
+    "  --config-dir <path>      config directory (default: ~/.claude)\n" +
+    "\n"
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CLI command handlers
+// ---------------------------------------------------------------------------
+
+async function handleCliCommand(args: ReturnType<typeof parseArgs>): Promise<void> {
+  const command = args.command;
+
+  if (command === "init") {
+    const result = runInit({
+      ...(args.configDir !== undefined ? { configDir: args.configDir } : {}),
+      ...(args.collectorUrl !== undefined ? { collectorUrl: args.collectorUrl } : {}),
+      ...(args.privacyTier !== undefined ? { privacyTier: args.privacyTier } : {}),
+      ...(args.installHooks !== undefined ? { installHooks: args.installHooks } : {})
+    });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
+
+  if (command === "status") {
+    const result = runStatus(args.configDir);
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    process.exitCode = result.ok ? 0 : 1;
+    return;
+  }
+
+  // hook-handler: read from stdin
+  const rawStdin = await readStdin();
+  if (args.forward === true) {
+    const result = await runHookHandlerAndForward({
+      rawStdin,
+      ...(args.configDir !== undefined ? { configDir: args.configDir } : {}),
+      ...(args.collectorUrl !== undefined ? { collectorUrl: args.collectorUrl } : {})
+    });
+    if (!result.ok) {
+      process.stderr.write(`${JSON.stringify(result, null, 2)}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
+
+  const result = runHookHandler({
+    rawStdin,
+    ...(args.configDir !== undefined ? { configDir: args.configDir } : {})
+  });
+  if (!result.ok) {
+    process.stderr.write(`${JSON.stringify(result, null, 2)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  process.stdout.write(`${JSON.stringify(result.envelope, null, 2)}\n`);
+}
+
+// ---------------------------------------------------------------------------
+// Server start
+// ---------------------------------------------------------------------------
+
+async function startServer(): Promise<void> {
   const host = process.env["RUNTIME_HOST"] ?? "127.0.0.1";
   const collectorPort = readNumberEnv("COLLECTOR_PORT", 8317);
   const apiPort = readNumberEnv("API_PORT", 8318);
@@ -127,6 +236,30 @@ async function main(): Promise<void> {
 
   process.on("SIGINT", () => { void shutdown(); });
   process.on("SIGTERM", () => { void shutdown(); });
+}
+
+// ---------------------------------------------------------------------------
+// Entry point — route to server or CLI subcommand
+// ---------------------------------------------------------------------------
+
+async function main(): Promise<void> {
+  const args = parseArgs(process.argv);
+  const command = args.command;
+
+  // "help" flag or unknown command
+  if (process.argv.includes("--help") || process.argv.includes("-h")) {
+    printUsage();
+    return;
+  }
+
+  // CLI subcommands: init, status, hook-handler
+  if (command === "init" || command === "status" || command === "hook-handler") {
+    await handleCliCommand(args);
+    return;
+  }
+
+  // No subcommand (or unrecognized) → start the server
+  await startServer();
 }
 
 void main().catch((error: unknown) => {
