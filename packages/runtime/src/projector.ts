@@ -279,15 +279,35 @@ function toUpdatedTrace(existing: AgentSessionTrace, envelope: RuntimeEnvelope):
   const prUrl = readString(payload, ["pr_url", "prUrl"]);
   const prRepo = readString(payload, ["pr_repo", "prRepo"]);
   const prNumberRaw = readNumber(payload, ["pr_number", "prNumber"]);
+  const prState = readString(payload, ["pr_state", "prState"]) ?? "open";
+  const prMergedAt = readString(payload, ["pr_merged_at", "prMergedAt"]);
   if (prUrl !== undefined && prRepo !== undefined && prNumberRaw !== undefined) {
-    const alreadyTracked = existingPullRequests.some((pr) => pr.prNumber === prNumberRaw && pr.repo === prRepo);
-    if (!alreadyTracked) {
+    const trackedIndex = existingPullRequests.findIndex((pr) => pr.prNumber === prNumberRaw && pr.repo === prRepo);
+    if (trackedIndex === -1) {
       existingPullRequests.push({
         repo: prRepo,
         prNumber: prNumberRaw,
-        state: "open",
-        url: prUrl
+        state: prState,
+        url: prUrl,
+        ...(prState === "merged" && prMergedAt !== undefined ? { mergedAt: prMergedAt } : {})
       });
+    } else if (prState !== "open") {
+      const tracked = existingPullRequests[trackedIndex]!;
+      existingPullRequests[trackedIndex] = {
+        ...tracked,
+        state: prState,
+        ...(prState === "merged" && prMergedAt !== undefined ? { mergedAt: prMergedAt } : {})
+      };
+    }
+  } else if (prState !== "open" && prRepo !== undefined && prNumberRaw !== undefined) {
+    const trackedIndex = existingPullRequests.findIndex((pr) => pr.prNumber === prNumberRaw && pr.repo === prRepo);
+    if (trackedIndex !== -1) {
+      const tracked = existingPullRequests[trackedIndex]!;
+      existingPullRequests[trackedIndex] = {
+        ...tracked,
+        state: prState,
+        ...(prState === "merged" && prMergedAt !== undefined ? { mergedAt: prMergedAt } : {})
+      };
     }
   }
 

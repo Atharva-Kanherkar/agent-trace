@@ -120,6 +120,10 @@ th{color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:
 .outcome-prs{border-top:1px solid var(--panel-border);padding-top:6px;margin-top:4px}
 .outcome-pr{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px}
 .pr-badge{font-size:10px;padding:1px 5px;border-radius:3px;font-weight:600;text-transform:uppercase;border:1px solid rgba(74,222,128,.3);color:var(--green)}
+.pr-badge.open{border-color:rgba(34,211,238,.3);color:var(--cyan)}
+.pr-badge.merged{border-color:rgba(192,132,252,.3);color:var(--purple)}
+.pr-badge.closed{border-color:rgba(248,113,113,.3);color:var(--red)}
+.pr-badge.draft{border-color:rgba(102,102,102,.3);color:var(--text-muted)}
 .pr-label{color:var(--cyan);font-weight:600}
 .pr-repo{color:var(--text-muted)}
 .pr-link{color:var(--text-dim);text-decoration:none;font-size:11px}
@@ -468,7 +472,7 @@ function renderReplay() {
     }
     if (replay.pullRequests.length > 0) {
       h += '<div class="outcome-prs">';
-      replay.pullRequests.forEach(function(pr){ h += '<div class="outcome-pr"><span class="pr-badge">' + esc(pr.state) + '</span><span class="pr-label">PR #' + pr.prNumber + '</span><span class="pr-repo">' + esc(pr.repo) + '</span>' + (pr.url ? '<a class="pr-link" href="' + esc(pr.url) + '" target="_blank" rel="noopener noreferrer">' + esc(pr.url) + '</a>' : '') + '</div>'; });
+      replay.pullRequests.forEach(function(pr){ h += '<div class="outcome-pr"><span class="pr-badge ' + esc(pr.state) + '">' + esc(pr.state) + '</span><span class="pr-label">PR #' + pr.prNumber + '</span><span class="pr-repo">' + esc(pr.repo) + '</span>' + (pr.url ? '<a class="pr-link" href="' + esc(pr.url) + '" target="_blank" rel="noopener noreferrer">' + esc(pr.url) + '</a>' : '') + '</div>'; });
       h += '</div>';
     }
     h += '</div>';

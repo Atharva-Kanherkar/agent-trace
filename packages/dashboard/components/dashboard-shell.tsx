@@ -1133,7 +1133,7 @@ export function DashboardShell(props: DashboardShellProps): ReactElement {
                     <div className="outcome-prs">
                       {sessionReplay.pullRequests.map((pr) => (
                         <div key={`${pr.repo}-${String(pr.prNumber)}`} className="outcome-pr-row">
-                          <span className="pr-badge">{pr.state}</span>
+                          <span className={`pr-badge ${pr.state}`}>{pr.state}</span>
                           <span className="pr-label">PR #{String(pr.prNumber)}</span>
                           <span className="pr-repo">{pr.repo}</span>
                           {pr.url !== undefined && (

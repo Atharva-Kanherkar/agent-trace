@@ -32,7 +32,7 @@ fs.chmodSync(path.join(outDir, "agent-trace.cjs"), 0o755);
 
 const pkg = {
   name: "agent-trace",
-  version: "0.2.9",
+  version: "0.2.10",
   description: "Self-hosted observability for AI coding agents. One command, zero config.",
   license: "Apache-2.0",
   bin: {

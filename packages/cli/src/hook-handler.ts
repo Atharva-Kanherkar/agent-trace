@@ -169,6 +169,57 @@ function extractPrUrl(payload: HookPayload): string | undefined {
   return undefined;
 }
 
+function extractPrState(payload: HookPayload): string | undefined {
+  const record = payload as Record<string, unknown>;
+
+  const explicit = readString(record, "pr_state") ?? readString(record, "prState");
+  if (explicit !== undefined) return explicit;
+
+  const output = readString(record, "tool_response") ?? readString(record, "toolResponse")
+    ?? readString(record, "stdout") ?? readString(record, "output");
+  const command = pickCommand(payload);
+  const combined = [command, output].filter((s) => s !== undefined).join("\n");
+  if (combined.length === 0) return undefined;
+
+  const isGhPr = /\bgh\s+pr\b/.test(combined);
+  if (!isGhPr) return undefined;
+
+  // JSON output: "state":"MERGED" / "state":"CLOSED" / "state":"OPEN" / "isDraft":true
+  const jsonState = combined.match(/"state"\s*:\s*"(MERGED|CLOSED|OPEN|DRAFT)"/i);
+  if (jsonState?.[1] !== undefined) {
+    const s = jsonState[1].toLowerCase();
+    return s === "open" ? "open" : s;
+  }
+  const isDraft = /"isDraft"\s*:\s*true/i.test(combined);
+  if (isDraft) return "draft";
+
+  // gh pr merge success
+  if (/\bgh\s+pr\s+merge\b/.test(combined) && output !== undefined && !/error|failed|not merged/i.test(output)) {
+    return "merged";
+  }
+
+  // Human-readable output from gh pr view
+  if (/\bMerged\b/.test(combined)) return "merged";
+  if (/\bClosed\b/.test(combined)) return "closed";
+  if (/\bDraft\b/.test(combined)) return "draft";
+
+  return undefined;
+}
+
+function extractPrMergedAt(payload: HookPayload): string | undefined {
+  const record = payload as Record<string, unknown>;
+
+  const explicit = readString(record, "pr_merged_at") ?? readString(record, "prMergedAt");
+  if (explicit !== undefined) return explicit;
+
+  const output = readString(record, "tool_response") ?? readString(record, "toolResponse")
+    ?? readString(record, "stdout") ?? readString(record, "output");
+  if (output === undefined) return undefined;
+
+  const match = output.match(/"mergedAt"\s*:\s*"([^"]+)"/);
+  return match?.[1] ?? undefined;
+}
+
 function parsePrFromUrl(url: string): { readonly repo: string; readonly prNumber: number } | undefined {
   const match = url.match(/https:\/\/github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)/);
   if (match === null || match[1] === undefined || match[2] === undefined) return undefined;
@@ -680,6 +731,16 @@ function enrichHookPayloadWithGitContext(
         patch["pr_number"] = parsed.prNumber;
       }
     }
+  }
+
+  const prState = extractPrState(payload);
+  if (prState !== undefined) {
+    patch["pr_state"] = prState;
+  }
+
+  const prMergedAt = extractPrMergedAt(payload);
+  if (prMergedAt !== undefined) {
+    patch["pr_merged_at"] = prMergedAt;
   }
 
   if (Object.keys(patch).length === 0) {

@@ -716,6 +716,26 @@ body {
   color: var(--green);
 }
 
+.pr-badge.open {
+  border-color: rgba(34, 211, 238, 0.3);
+  color: var(--cyan);
+}
+
+.pr-badge.merged {
+  border-color: rgba(192, 132, 252, 0.3);
+  color: var(--purple);
+}
+
+.pr-badge.closed {
+  border-color: rgba(248, 113, 113, 0.3);
+  color: var(--red);
+}
+
+.pr-badge.draft {
+  border-color: rgba(102, 102, 102, 0.3);
+  color: var(--text-muted);
+}
+
 .pr-label {
   color: var(--cyan);
   font-weight: 600;
