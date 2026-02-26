@@ -1,4 +1,5 @@
 import type { AgentSessionTrace, TimelineEvent } from "../../schema/src/types";
+import { calculateCostUsd } from "../../schema/src/pricing";
 import type { RuntimeEnvelope } from "./types";
 
 type UnknownRecord = Record<string, unknown>;
@@ -100,11 +101,38 @@ function buildNormalizedDetails(payload: unknown): Readonly<Record<string, unkno
   return normalized;
 }
 
+function computeEventCost(payload: UnknownRecord | undefined): number | undefined {
+  const explicit = readNumber(payload, ["cost_usd", "costUsd"]);
+  if (explicit !== undefined && explicit > 0) {
+    return explicit;
+  }
+
+  const model = readString(payload, ["model"]);
+  const inputTokens = readNumber(payload, ["input_tokens", "inputTokens"]);
+  const outputTokens = readNumber(payload, ["output_tokens", "outputTokens"]);
+  if (model === undefined || inputTokens === undefined || outputTokens === undefined) {
+    return explicit;
+  }
+
+  const cacheReadTokens = readNumber(payload, ["cache_read_tokens", "cacheReadTokens", "cache_read_input_tokens"]);
+  const cacheWriteTokens = readNumber(payload, ["cache_write_tokens", "cacheWriteTokens", "cache_creation_input_tokens"]);
+
+  const calculated = calculateCostUsd({
+    model,
+    inputTokens,
+    outputTokens,
+    cacheReadTokens: cacheReadTokens ?? 0,
+    cacheWriteTokens: cacheWriteTokens ?? 0
+  });
+
+  return calculated > 0 ? calculated : explicit;
+}
+
 function toTimelineEvent(envelope: RuntimeEnvelope): TimelineEvent {
   const payload = asRecord(envelope.payload);
   const inputTokens = readNumber(payload, ["input_tokens", "inputTokens"]);
   const outputTokens = readNumber(payload, ["output_tokens", "outputTokens"]);
-  const costUsd = readNumber(payload, ["cost_usd", "costUsd"]);
+  const costUsd = computeEventCost(payload);
   const details = buildNormalizedDetails(envelope.payload);
 
   return {
@@ -203,7 +231,7 @@ function toUpdatedTrace(existing: AgentSessionTrace, envelope: RuntimeEnvelope):
   const endedAt = shouldMarkEnded(envelope.eventType) ? envelope.eventTimestamp : existing.endedAt;
   const latestTime = endedAt ?? envelope.eventTimestamp;
 
-  const cost = readNumber(payload, ["cost_usd", "costUsd"]) ?? 0;
+  const cost = computeEventCost(payload) ?? 0;
   const inputTokens = readNumber(payload, ["input_tokens", "inputTokens"]) ?? 0;
   const outputTokens = readNumber(payload, ["output_tokens", "outputTokens"]) ?? 0;
   const linesAdded = readNumber(payload, ["lines_added", "linesAdded"]) ?? 0;

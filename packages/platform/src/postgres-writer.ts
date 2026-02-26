@@ -56,7 +56,7 @@ function toPostgresCommitRow(trace: AgentSessionTrace, commit: CommitInfo): Post
     message: toNullableString(commit.message),
     lines_added: toNonNegativeInteger(commit.linesAdded),
     lines_removed: toNonNegativeInteger(commit.linesRemoved),
-    chain_cost_usd: 0,
+    chain_cost_usd: toNonNegativeDecimal(trace.metrics.totalCostUsd),
     committed_at: toNullableString(commit.committedAt)
   };
 }
