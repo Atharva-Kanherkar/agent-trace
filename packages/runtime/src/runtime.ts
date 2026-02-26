@@ -20,7 +20,7 @@ import type {
   RuntimeStartOptions,
   RuntimeStartedServers
 } from "./types";
-import { projectEnvelopeToTrace } from "./projector";
+import { projectEnvelopeToTrace, computeEventCost } from "./projector";
 
 function toAddress(server: http.Server): string {
   const address = server.address();
@@ -61,6 +61,18 @@ export interface InMemoryRuntime extends RuntimeRequestHandlers {
   readonly dailyCostReader?: RuntimeDailyCostReader;
 }
 
+function enrichEnvelopeWithCost(event: RuntimeEnvelope): RuntimeEnvelope {
+  const payload = event.payload;
+  if (typeof payload["cost_usd"] === "number" && payload["cost_usd"] > 0) {
+    return event;
+  }
+  const cost = computeEventCost(payload as Record<string, unknown>);
+  if (cost === undefined || cost <= 0) {
+    return event;
+  }
+  return { ...event, payload: { ...payload, cost_usd: cost } };
+}
+
 async function projectAndPersistEvent(
   event: RuntimeEnvelope,
   sessionRepository: InMemorySessionRepository,
@@ -69,7 +81,8 @@ async function projectAndPersistEvent(
   const current = sessionRepository.getBySessionId(event.sessionId);
   const projected = projectEnvelopeToTrace(current, event);
   sessionRepository.upsert(projected);
-  await persistence.persistAcceptedEvent(event, projected);
+  const enriched = enrichEnvelopeWithCost(event);
+  await persistence.persistAcceptedEvent(enriched, projected);
 }
 
 export function createRuntimeOtelSink(runtime: InMemoryRuntime): OtelEventsSink {

@@ -139,6 +139,7 @@ export class SqliteClient
     this.db.pragma("synchronous = NORMAL");
     this.migrateDeduplicateEvents();
     this.db.exec(SCHEMA_SQL);
+    this.migrateRebuildBrokenTraces();
   }
 
   public async insertJsonEachRow(request: ClickHouseInsertRequest<ClickHouseAgentEventRow>): Promise<void> {
@@ -456,6 +457,37 @@ export class SqliteClient
   }
 
   /**
+   * Migration v2: fix databases that ran v0.2.6's broken rebuild (models_used='[]' with data present).
+   * Re-runs the rebuild if session_traces exist but have empty models_used while events have model data.
+   */
+  private migrateRebuildBrokenTraces(): void {
+    const tracesExist = this.db.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='session_traces'"
+    ).get();
+    if (tracesExist === undefined) {
+      return;
+    }
+
+    // Check if any session_traces have models_used='[]' but events have model data
+    const broken = this.db.prepare(`
+      SELECT 1 FROM session_traces st
+      WHERE st.models_used = '[]'
+        AND EXISTS (
+          SELECT 1 FROM agent_events ae
+          WHERE ae.session_id = st.session_id AND ae.model IS NOT NULL
+        )
+      LIMIT 1
+    `).get();
+
+    if (broken === undefined) {
+      return;
+    }
+
+    console.log("[agent-trace] migrating: rebuilding session traces with correct models/tools");
+    this.rebuildSessionTracesFromEvents();
+  }
+
+  /**
    * Rebuild session_traces by aggregating deduplicated agent_events.
    * Called after dedup migration so the dashboard has correct metrics immediately.
    */
@@ -469,6 +501,7 @@ export class SqliteClient
 
     this.db.exec("DELETE FROM session_traces");
 
+    // Pass 1: aggregate numeric metrics
     this.db.exec(`
       INSERT OR REPLACE INTO session_traces
         (session_id, version, started_at, ended_at, user_id, git_repo, git_branch,
@@ -499,6 +532,37 @@ export class SqliteClient
       FROM agent_events
       GROUP BY session_id
     `);
+
+    // Pass 2: populate models_used, tools_used, files_touched from event data
+    const sessionIds = this.db.prepare(
+      "SELECT DISTINCT session_id FROM agent_events"
+    ).all() as { session_id: string }[];
+
+    const updateArrays = this.db.prepare(
+      "UPDATE session_traces SET models_used = ?, tools_used = ?, files_touched = ? WHERE session_id = ?"
+    );
+
+    const transaction = this.db.transaction((ids: { session_id: string }[]) => {
+      for (const { session_id } of ids) {
+        const models = this.db.prepare(
+          "SELECT DISTINCT model FROM agent_events WHERE session_id = ? AND model IS NOT NULL"
+        ).all(session_id) as { model: string }[];
+        const tools = this.db.prepare(
+          "SELECT DISTINCT tool_name FROM agent_events WHERE session_id = ? AND tool_name IS NOT NULL"
+        ).all(session_id) as { tool_name: string }[];
+        const files = this.db.prepare(
+          "SELECT DISTINCT commit_sha FROM agent_events WHERE session_id = ? AND commit_sha IS NOT NULL"
+        ).all(session_id) as { commit_sha: string }[];
+
+        updateArrays.run(
+          JSON.stringify(models.map((r) => r.model)),
+          JSON.stringify(tools.map((r) => r.tool_name)),
+          JSON.stringify(files.map((r) => r.commit_sha)),
+          session_id
+        );
+      }
+    });
+    transaction(sessionIds);
 
     const rebuilt = this.db.prepare("SELECT COUNT(*) as c FROM session_traces").get() as { c: number };
     console.log(`[agent-trace] rebuilt ${rebuilt.c} session traces from deduplicated events`);

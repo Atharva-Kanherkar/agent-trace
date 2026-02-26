@@ -101,7 +101,7 @@ function buildNormalizedDetails(payload: unknown): Readonly<Record<string, unkno
   return normalized;
 }
 
-function computeEventCost(payload: UnknownRecord | undefined): number | undefined {
+export function computeEventCost(payload: UnknownRecord | undefined): number | undefined {
   const explicit = readNumber(payload, ["cost_usd", "costUsd"]);
   if (explicit !== undefined && explicit > 0) {
     return explicit;
