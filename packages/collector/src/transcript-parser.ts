@@ -230,6 +230,10 @@ function buildNormalizedPayload(
   if (cacheReadTokens !== undefined) {
     payload["cache_read_tokens"] = cacheReadTokens;
   }
+  const cacheWriteTokens = readNumber(usage, ["cache_creation_input_tokens", "cacheCreationInputTokens"]);
+  if (cacheWriteTokens !== undefined) {
+    payload["cache_write_tokens"] = cacheWriteTokens;
+  }
 
   const promptText = readPromptText(message);
   if (promptText !== undefined) {

@@ -11,6 +11,7 @@ import type {
   PostgresCommitReadRow
 } from "../../platform/src/persistence-types";
 import type { AgentSessionTrace, CommitInfo } from "../../schema/src/types";
+import { calculateCostUsd } from "../../schema/src/pricing";
 import { createInMemoryRuntime, type InMemoryRuntime } from "./runtime";
 import type { RuntimePersistence, RuntimePersistenceSnapshot, RuntimeEnvelope, RuntimeDailyCostReader } from "./types";
 
@@ -103,11 +104,33 @@ function hydrateFromSqlite(runtime: InMemoryRuntime, sqlite: SqliteClient, limit
       const extra = commits.filter((c: CommitInfo) => !pgShas.has(c.sha));
       commits = [...mapped, ...extra];
     }
-    return {
+    let hydratedTrace: AgentSessionTrace = {
       ...trace,
       timeline,
       git: { ...trace.git, commits }
     };
+
+    // Recalculate cost from tokens if stored cost is 0 but tokens exist
+    if (
+      hydratedTrace.metrics.totalCostUsd === 0 &&
+      (hydratedTrace.metrics.totalInputTokens > 0 || hydratedTrace.metrics.totalOutputTokens > 0) &&
+      hydratedTrace.metrics.modelsUsed.length > 0
+    ) {
+      const model: string = String(hydratedTrace.metrics.modelsUsed[0]);
+      const recalculated = calculateCostUsd({
+        model,
+        inputTokens: hydratedTrace.metrics.totalInputTokens,
+        outputTokens: hydratedTrace.metrics.totalOutputTokens
+      });
+      if (recalculated > 0) {
+        hydratedTrace = {
+          ...hydratedTrace,
+          metrics: { ...hydratedTrace.metrics, totalCostUsd: recalculated }
+        };
+      }
+    }
+
+    return hydratedTrace;
   });
 
   for (const trace of traces) {
