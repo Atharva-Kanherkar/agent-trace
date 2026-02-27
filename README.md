@@ -1,65 +1,72 @@
 # agent-trace
 
-**Self-hosted observability for AI coding agents.**
+**See what Claude Code did, what it cost, and whether it was productive.**
 
-See exactly what your AI coding agent did — every prompt, every tool call, every file touched, every dollar spent. Runs on your infrastructure, your data never leaves.
+You run a Claude Code session. It touches 30 files, makes 47 tool calls, and costs $8.
+Was that productive? Did it actually commit anything? Or did it spin in circles?
 
----
+agent-trace answers that. It captures every session automatically via Claude Code hooks, and gives you a dashboard showing cost, commits, PRs, and full prompt-by-prompt replay. Self-hosted — your data never leaves your machine.
 
-## Two Ways to Run
-
-| | **npx (standalone)** | **Docker (full stack)** |
-|---|---|---|
-| **Install** | `npx agent-trace@latest` | `git clone` + `./scripts/start-stack.sh` |
-| **Database** | SQLite (single file) | ClickHouse + PostgreSQL |
-| **Best for** | Solo developer, single machine | Teams, production, long-term analytics |
-| **Setup time** | 30 seconds | 2 minutes |
-| **Dependencies** | Node.js 18+ | Docker |
-| **Dashboard** | Included (port 3100) | Next.js app (port 3100) |
-| **OTEL gRPC** | Not available | Port 4717 |
-| **Data location** | `~/.agent-trace/data.db` | Docker volumes |
-
-**Use npx** if you're a solo developer who wants to try agent-trace in under a minute. Everything runs in a single process with zero dependencies beyond Node.js.
-
-**Use Docker** if you need persistent analytics across machines, team-wide dashboards, ClickHouse-powered queries, or OpenTelemetry gRPC ingestion.
+<!-- TODO: Add a GIF/screenshot of the dashboard here -->
 
 ---
 
-## Option A: npx (Standalone)
-
-### 1. Start the server
+## Quick Start (30 seconds)
 
 ```bash
+# 1. Start the server
 npx agent-trace@latest
-```
 
-This starts the collector, API, and dashboard in a single process with a local SQLite database at `~/.agent-trace/data.db`. Sessions persist across restarts.
-
-### 2. Connect Claude Code
-
-```bash
+# 2. Connect Claude Code (run once, then restart Claude Code)
 npx agent-trace@latest init --privacy-tier 2
+
+# 3. Open the dashboard
+open http://127.0.0.1:3100
 ```
 
-This wires up Claude Code's hooks so every session is automatically captured. Restart Claude Code after running this.
+That's it. Every Claude Code session is now captured automatically.
 
-### 3. Open the dashboard
+---
 
-```
-http://127.0.0.1:3100
-```
+## What You See
 
-### Configuration
+**Cost per session.** Every session shows exactly how many tokens it used (input, output, cache read/write) and what it cost, using accurate per-model Anthropic pricing.
 
-Environment variables:
+**Git outcomes.** Which sessions produced commits. Which opened PRs (with state: open, merged, closed, draft). What branch the work happened on. Cost per commit.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `COLLECTOR_PORT` | `8317` | Hook ingest port |
-| `API_PORT` | `8318` | API port |
-| `DASHBOARD_PORT` | `3100` | Dashboard port |
-| `SQLITE_DB_PATH` | `~/.agent-trace/data.db` | Database file path |
-| `OTEL_PRIVACY_TIER` | `2` | Privacy tier (1, 2, or 3) |
+**Prompt-by-prompt replay.** For each thing you asked, see exactly what happened:
+- Bash commands that were run (syntax-highlighted)
+- File edits with inline diffs (red/green)
+- Files read, searches performed, files written
+- Agent response with code blocks highlighted per language
+
+**Quality signals at a glance.** The session list shows commit count, lines changed (+/-), and cost — so you can immediately tell which sessions were productive and which burned tokens doing nothing.
+
+**Daily cost chart.** 7-day spend overview broken down by session count, prompts, and tool calls.
+
+**Live updates.** Sessions stream in real-time via SSE. No manual refresh.
+
+---
+
+## How It Works
+
+agent-trace uses Claude Code's [hooks system](https://docs.anthropic.com/en/docs/claude-code/hooks). When you run `agent-trace init`, it registers hooks in `~/.claude/settings.json` that fire on every session event:
+
+| Hook Event | What it captures |
+|------------|-----------------|
+| `SessionStart` | Session begins — baseline git state |
+| `PostToolUse` | Every tool call — Bash, file edits, reads, searches |
+| `SessionEnd` | Session ends — final git diff, total lines changed |
+| `Stop` | Graceful stop |
+| `TaskCompleted` | Task completion |
+
+Each event is enriched with git context (branch, commit SHA, diff stats, PR URLs) and forwarded to a local collector. The collector deduplicates, projects events into session traces, and persists to a SQLite database at `~/.agent-trace/data.db`.
+
+Everything runs in a single process. Sessions persist across restarts.
+
+---
+
+## Configuration
 
 ### CLI commands
 
@@ -70,7 +77,7 @@ npx agent-trace@latest status       # Check if hooks are installed
 npx agent-trace@latest --help       # Show all options
 ```
 
-Init options:
+### Init options
 
 ```bash
 npx agent-trace@latest init \
@@ -78,113 +85,16 @@ npx agent-trace@latest init \
   --privacy-tier 2
 ```
 
----
+### Environment variables
 
-## Option B: Docker (Full Stack)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `COLLECTOR_PORT` | `8317` | Hook ingest port |
+| `API_PORT` | `8318` | API port |
+| `DASHBOARD_PORT` | `3100` | Dashboard port |
+| `SQLITE_DB_PATH` | `~/.agent-trace/data.db` | Database file path |
 
-### 1. Start the stack
-
-```bash
-git clone https://github.com/Atharva-Kanherkar/agent-trace.git
-cd agent-trace
-./scripts/start-stack.sh
-```
-
-This spins up ClickHouse, PostgreSQL, the collector, API, and a Next.js dashboard via Docker Compose.
-
-### 2. Connect Claude Code
-
-```bash
-npm ci && npm run --workspace @agent-trace/cli build && npm link --workspace @agent-trace/cli
-
-agent-trace init \
-  --collector-url http://127.0.0.1:8317/v1/hooks \
-  --privacy-tier 2
-```
-
-Restart Claude Code. Sessions appear automatically.
-
-### 3. Open the dashboard
-
-```
-http://127.0.0.1:3100
-```
-
-### Ports
-
-| Port | Service |
-|------|---------|
-| `3100` | Dashboard (Next.js) |
-| `8317` | Collector (hook ingest) |
-| `8318` | API |
-| `4717` | OTEL gRPC receiver |
-
-### Scripts
-
-```bash
-./scripts/start-stack.sh       # Start production stack
-./scripts/start-stack.sh dev   # Start with hot reload
-./scripts/stop-stack.sh        # Stop the stack
-./scripts/health-check.sh      # Check all services
-```
-
----
-
-## What You Get
-
-**Session replay, grouped by prompt.** For each thing you asked, see exactly what happened:
-
-- What tools were called (Bash commands, file reads, writes, edits, searches)
-- What files were touched and what changed (syntax-highlighted diffs)
-- What the agent responded (with code blocks highlighted per language)
-- How much it cost and how many tokens it used
-
-**Git outcomes.** See which sessions produced commits (sha, message, timestamp), opened pull requests, and what branch the work happened on.
-
-**Quality signals at a glance.** The session list shows which sessions produced commits, how many lines changed, and total cost — so you can immediately tell which sessions were productive and which spun in circles.
-
-**Cost tracking.** Daily spend charts broken down by session. Know exactly where your token budget is going.
-
-**Live updates.** Sessions stream in real-time via SSE. No manual refresh needed.
-
-## How Hooks Work
-
-agent-trace captures data from Claude Code via its [hooks system](https://docs.anthropic.com/en/docs/claude-code/hooks). When you run `agent-trace init`, it adds entries to `~/.claude/settings.json` that fire on these events:
-
-| Hook Event | What it captures |
-|------------|-----------------|
-| `SessionStart` | Session begins — baseline git state |
-| `PostToolUse` | Every tool call — Bash commands, file edits, reads, searches |
-| `SessionEnd` | Session ends — final git diff, total lines changed |
-| `Stop` | Graceful stop |
-| `TaskCompleted` | Task completion |
-
-Each hook pipes the event payload to `agent-trace hook-handler --forward`, which enriches it with git context (branch, commit SHA, diff stats, PR URLs) and forwards it to the collector.
-
-**What gets detected automatically:**
-
-- Git commits (SHA, message, lines added/removed)
-- Pull requests (repo, PR number, state: open/merged/closed/draft, URL)
-- Cost per event (model, input/output/cache tokens)
-- Files changed and tools used
-
-To verify hooks are installed:
-
-```bash
-npx agent-trace@latest status
-```
-
-To manually check `~/.claude/settings.json`:
-
-```bash
-cat ~/.claude/settings.json | grep agent-trace
-```
-
-If you don't see hook entries, re-run `npx agent-trace@latest init --privacy-tier 2` and restart Claude Code.
-
----
-
-## Privacy Tiers
+### Privacy Tiers
 
 Control what gets stored. Set during init with `--privacy-tier <level>`:
 
@@ -193,6 +103,36 @@ Control what gets stored. Set during init with `--privacy-tier <level>`:
 | **1** | Metadata only — session IDs, timestamps, token counts, cost |
 | **2** | Metadata + prompts + tool call details (file paths, commands, diffs) |
 | **3** | Full payloads including model responses |
+
+### Verifying hooks
+
+```bash
+npx agent-trace@latest status
+```
+
+If hooks aren't showing, re-run `npx agent-trace@latest init --privacy-tier 2` and restart Claude Code.
+
+---
+
+## Docker (Full Stack)
+
+For teams or long-term analytics, there's a Docker Compose setup with ClickHouse + PostgreSQL:
+
+```bash
+git clone https://github.com/Atharva-Kanherkar/agent-trace.git
+cd agent-trace
+./scripts/start-stack.sh
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details on the Docker architecture.
+
+---
+
+## Roadmap
+
+- [ ] Team dashboard — aggregate cost and productivity across developers ([#1](https://github.com/Atharva-Kanherkar/agent-trace/issues/1))
+- [ ] Export and integrations — CSV export, webhooks, GitHub Action for PR cost comments ([#2](https://github.com/Atharva-Kanherkar/agent-trace/issues/2))
+- [ ] Multi-agent support — Cursor, Windsurf, Aider, and other AI coding agents
 
 ## Contributing
 
