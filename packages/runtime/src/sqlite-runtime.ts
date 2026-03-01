@@ -210,17 +210,33 @@ function createSqliteInsightsConfigAccessor(sqlite: SqliteClient): ApiInsightsCo
   };
 }
 
+function createSqliteTeamBudgetStore(sqlite: SqliteClient): import("../../api/src/types").ApiTeamBudgetStore {
+  return {
+    getTeamBudget() {
+      return sqlite.getTeamBudget() ?? undefined;
+    },
+    upsertTeamBudget(limitUsd: number, alertPercent: number) {
+      sqlite.upsertTeamBudget(limitUsd, alertPercent);
+    },
+    getMonthSpend(yearMonth: string) {
+      return sqlite.getMonthSpend(yearMonth);
+    }
+  };
+}
+
 export function createSqliteBackedRuntime(options: SqliteRuntimeOptions): SqliteRuntimeHandle {
   const sqlite = new SqliteClient(options.dbPath);
   const persistence = new SqlitePersistence(sqlite);
   const dailyCostReader = new SqliteDailyCostReader(sqlite);
   const insightsConfigAccessor = options.insightsConfigAccessor ?? createSqliteInsightsConfigAccessor(sqlite);
+  const teamBudgetStore = createSqliteTeamBudgetStore(sqlite);
 
   const runtime = createInMemoryRuntime({
     ...(options.startedAtMs !== undefined ? { startedAtMs: options.startedAtMs } : {}),
     persistence,
     dailyCostReader,
-    insightsConfigAccessor
+    insightsConfigAccessor,
+    teamBudgetStore
   });
 
   const hydratedCount = hydrateFromSqlite(runtime, sqlite, options.bootstrapLimit, options.eventLimit);

@@ -24,6 +24,30 @@ function parsePathname(url: string): string {
   }
 }
 
+function checkTeamAuth(authorizationHeader: string | undefined): CollectorResponse | undefined {
+  const teamAuthToken = process.env["TEAM_AUTH_TOKEN"];
+  if (teamAuthToken === undefined || teamAuthToken.length === 0) {
+    return undefined; // No auth required
+  }
+
+  if (authorizationHeader === undefined || authorizationHeader.length === 0) {
+    return {
+      statusCode: 401,
+      payload: { status: "error", message: "authorization required" }
+    };
+  }
+
+  const expected = `Bearer ${teamAuthToken}`;
+  if (authorizationHeader !== expected) {
+    return {
+      statusCode: 403,
+      payload: { status: "error", message: "invalid authorization token" }
+    };
+  }
+
+  return undefined;
+}
+
 export function handleCollectorRawHttpRequest<TEvent>(
   request: CollectorRawHttpRequest,
   dependencies: CollectorHandlerDependencies<TEvent>
@@ -37,6 +61,14 @@ export function handleCollectorRawHttpRequest<TEvent>(
         message: "method not allowed"
       }
     };
+  }
+
+  // Enforce auth on POST endpoints when TEAM_AUTH_TOKEN is set
+  if (method === "POST") {
+    const authError = checkTeamAuth(request.authorizationHeader);
+    if (authError !== undefined) {
+      return authError;
+    }
   }
 
   const pathname = parsePathname(request.url);
@@ -106,12 +138,14 @@ export function createCollectorHttpHandler<TEvent>(
     const method = req.method ?? "GET";
     const url = req.url ?? "/";
     const rawBody = method === "POST" ? await readRequestBody(req) : undefined;
+    const authorizationHeader = typeof req.headers["authorization"] === "string" ? req.headers["authorization"] : undefined;
 
     const response = handleCollectorRawHttpRequest(
       {
         method,
         url,
-        ...(rawBody !== undefined ? { rawBody } : {})
+        ...(rawBody !== undefined ? { rawBody } : {}),
+        ...(authorizationHeader !== undefined ? { authorizationHeader } : {})
       },
       dependencies
     );

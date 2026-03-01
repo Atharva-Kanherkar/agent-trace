@@ -60,6 +60,7 @@ export interface InMemoryRuntime extends RuntimeRequestHandlers {
   readonly persistence: RuntimePersistence;
   readonly dailyCostReader?: RuntimeDailyCostReader;
   readonly insightsConfigAccessor?: import("../../api/src/types").ApiInsightsConfigAccessor;
+  readonly teamBudgetStore?: import("../../api/src/types").ApiTeamBudgetStore;
 }
 
 function enrichEnvelopeWithCost(event: RuntimeEnvelope): RuntimeEnvelope {
@@ -95,13 +96,15 @@ function resolveRuntimeOptions(input: number | InMemoryRuntimeOptions | undefine
   readonly persistence: RuntimePersistence;
   readonly dailyCostReader: RuntimeDailyCostReader | undefined;
   readonly insightsConfigAccessor: import("../../api/src/types").ApiInsightsConfigAccessor | undefined;
+  readonly teamBudgetStore: import("../../api/src/types").ApiTeamBudgetStore | undefined;
 } {
   if (typeof input === "number") {
     return {
       startedAtMs: input,
       persistence: new InMemoryRuntimePersistence(),
       dailyCostReader: undefined,
-      insightsConfigAccessor: undefined
+      insightsConfigAccessor: undefined,
+      teamBudgetStore: undefined
     };
   }
 
@@ -111,7 +114,8 @@ function resolveRuntimeOptions(input: number | InMemoryRuntimeOptions | undefine
     startedAtMs,
     persistence,
     dailyCostReader: input?.dailyCostReader,
-    insightsConfigAccessor: input?.insightsConfigAccessor
+    insightsConfigAccessor: input?.insightsConfigAccessor,
+    teamBudgetStore: input?.teamBudgetStore
   };
 }
 
@@ -133,7 +137,8 @@ export function createInMemoryRuntime(input?: number | InMemoryRuntimeOptions): 
     startedAtMs: options.startedAtMs,
     repository: sessionRepository,
     ...(options.dailyCostReader !== undefined ? { dailyCostReader: options.dailyCostReader } : {}),
-    ...(options.insightsConfigAccessor !== undefined ? { insightsConfigAccessor: options.insightsConfigAccessor } : {})
+    ...(options.insightsConfigAccessor !== undefined ? { insightsConfigAccessor: options.insightsConfigAccessor } : {}),
+    ...(options.teamBudgetStore !== undefined ? { teamBudgetStore: options.teamBudgetStore } : {})
   } as const;
 
   return {
@@ -144,6 +149,7 @@ export function createInMemoryRuntime(input?: number | InMemoryRuntimeOptions): 
     persistence,
     ...(options.dailyCostReader !== undefined ? { dailyCostReader: options.dailyCostReader } : {}),
     ...(options.insightsConfigAccessor !== undefined ? { insightsConfigAccessor: options.insightsConfigAccessor } : {}),
+    ...(options.teamBudgetStore !== undefined ? { teamBudgetStore: options.teamBudgetStore } : {}),
     handleCollectorRaw: collectorService.handleRaw,
     handleApiRaw: (request) => handleApiRawHttpRequest(request, apiDependencies)
   };
@@ -174,7 +180,8 @@ export async function startInMemoryRuntimeServers(
           startedAtMs: runtime.collectorDependencies.startedAtMs,
           repository: runtime.sessionRepository,
           ...(runtime.dailyCostReader !== undefined ? { dailyCostReader: runtime.dailyCostReader } : {}),
-          ...(runtime.insightsConfigAccessor !== undefined ? { insightsConfigAccessor: runtime.insightsConfigAccessor } : {})
+          ...(runtime.insightsConfigAccessor !== undefined ? { insightsConfigAccessor: runtime.insightsConfigAccessor } : {}),
+          ...(runtime.teamBudgetStore !== undefined ? { teamBudgetStore: runtime.teamBudgetStore } : {})
         })
       )
     : undefined;

@@ -92,6 +92,7 @@ export interface DashboardSessionReplayProvider {
 
 export interface DashboardRenderOptions {
   readonly title?: string;
+  readonly currentUserEmail?: string;
 }
 
 export interface DashboardServerStartOptions {
@@ -99,6 +100,7 @@ export interface DashboardServerStartOptions {
   readonly port?: number;
   readonly apiBaseUrl?: string;
   readonly startedAtMs?: number;
+  readonly currentUserEmail?: string;
   readonly sessionsProvider?: DashboardSessionsProvider;
   readonly sessionReplayProvider?: DashboardSessionReplayProvider;
 }

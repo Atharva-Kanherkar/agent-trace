@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+
 import { buildClaudeHookConfig } from "./claude-hooks";
 import type { CliConfigStore, InitCommandInput, InitCommandResult, PrivacyTier } from "./types";
 import { FileCliConfigStore } from "./config-store";
@@ -37,6 +39,18 @@ function deriveOtelLogsEndpoint(collectorUrl: string): string {
   }
 }
 
+function readGitConfig(key: string): string | undefined {
+  try {
+    const output = execFileSync("git", ["config", "--global", key], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"]
+    }).trim();
+    return output.length > 0 ? output : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function buildTelemetryEnv(collectorUrl: string, privacyTier: PrivacyTier): Readonly<Record<string, string>> {
   const enablePromptAndToolDetail = privacyTier >= 2;
   const otelLogsEndpoint = deriveOtelLogsEndpoint(collectorUrl);
@@ -55,12 +69,19 @@ function buildTelemetryEnv(collectorUrl: string, privacyTier: PrivacyTier): Read
 
 export function runInit(input: InitCommandInput, store: CliConfigStore = new FileCliConfigStore()): InitCommandResult {
   const timestamp = nowIso(input.nowIso);
+  const userEmail = readGitConfig("user.email");
+  const userName = readGitConfig("user.name");
   const config = {
     version: "1.0" as const,
     collectorUrl: input.collectorUrl ?? "http://127.0.0.1:8317/v1/hooks",
     privacyTier: ensurePrivacyTierOrDefault(input.privacyTier),
     hookCommand: "agent-trace hook-handler --forward",
-    updatedAt: timestamp
+    updatedAt: timestamp,
+    ...(userEmail !== undefined ? { userEmail } : {}),
+    ...(userName !== undefined ? { userName } : {}),
+    ...(input.teamUrl !== undefined ? { teamCollectorUrl: input.teamUrl } : {}),
+    ...(input.teamPrivacyTier !== undefined ? { teamPrivacyTier: input.teamPrivacyTier } : {}),
+    ...(input.teamToken !== undefined ? { teamAuthToken: input.teamToken } : {})
   };
   const telemetryEnv = buildTelemetryEnv(config.collectorUrl, config.privacyTier);
   const hooks = buildClaudeHookConfig(config.hookCommand, timestamp);

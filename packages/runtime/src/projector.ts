@@ -162,13 +162,17 @@ function toBaseTrace(envelope: RuntimeEnvelope): AgentSessionTrace {
   const gitRepo = readString(payload, ["git_repo", "gitRepo"]);
   const gitBranch = readString(payload, ["git_branch", "gitBranch"]);
   const projectPath = readString(payload, ["project_path", "projectPath"]);
-  const userId = readString(payload, ["user_id", "userId"]) ?? "unknown_user";
+  const userEmail = readString(payload, ["user_email", "userEmail"]);
+  const userName = readString(payload, ["user_name", "userName"]);
+  const userId = userEmail ?? readString(payload, ["user_id", "userId"]) ?? "unknown_user";
 
   return {
     sessionId: envelope.sessionId,
     agentType: "claude_code",
     user: {
-      id: userId
+      id: userId,
+      ...(userEmail !== undefined ? { email: userEmail } : {}),
+      ...(userName !== undefined ? { displayName: userName } : {})
     },
     environment: {
       ...(projectPath !== undefined ? { projectPath } : {}),
@@ -236,6 +240,17 @@ function toUpdatedTrace(existing: AgentSessionTrace, envelope: RuntimeEnvelope):
   const mergedTimeline = [...existing.timeline, timelineEvent];
   const endedAt = shouldMarkEnded(envelope.eventType) ? envelope.eventTimestamp : existing.endedAt;
   const latestTime = endedAt ?? envelope.eventTimestamp;
+
+  // Update user identity if base trace had unknown_user
+  const newEmail = readString(payload, ["user_email", "userEmail"]);
+  const newName = readString(payload, ["user_name", "userName"]);
+  const updatedUser = (existing.user.id === "unknown_user" && newEmail !== undefined)
+    ? { id: newEmail, email: newEmail, ...(newName !== undefined ? { displayName: newName } : {}) }
+    : {
+        ...existing.user,
+        ...(existing.user.email === undefined && newEmail !== undefined ? { email: newEmail } : {}),
+        ...(existing.user.displayName === undefined && newName !== undefined ? { displayName: newName } : {})
+      };
 
   const cost = computeEventCost(payload) ?? 0;
   const inputTokens = readNumber(payload, ["input_tokens", "inputTokens"]) ?? 0;
@@ -313,6 +328,7 @@ function toUpdatedTrace(existing: AgentSessionTrace, envelope: RuntimeEnvelope):
 
   return {
     ...existing,
+    user: updatedUser,
     ...(endedAt !== undefined ? { endedAt } : {}),
     activeDurationMs: updateDurationMs(existing.startedAt, latestTime),
     timeline: mergedTimeline,

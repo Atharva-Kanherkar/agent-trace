@@ -164,6 +164,7 @@ export class SqliteClient
     this.migrateDeduplicateEvents();
     this.db.exec(SCHEMA_SQL);
     this.migrateRebuildBrokenTraces();
+    this.migrateTeamColumns();
   }
 
   public async insertJsonEachRow(request: ClickHouseInsertRequest<ClickHouseAgentEventRow>): Promise<void> {
@@ -179,18 +180,20 @@ export class SqliteClient
 
     const upsert = this.db.prepare(`
       INSERT INTO session_traces
-        (session_id, version, started_at, ended_at, user_id, git_repo, git_branch,
+        (session_id, version, started_at, ended_at, user_id, user_email, user_display_name, git_repo, git_branch,
          prompt_count, tool_call_count, api_call_count, total_cost_usd,
          total_input_tokens, total_output_tokens, total_cache_read_tokens, total_cache_write_tokens,
          lines_added, lines_removed,
          models_used, tools_used, files_touched, commit_count, updated_at)
       VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(session_id) DO UPDATE SET
         version = excluded.version,
         started_at = excluded.started_at,
         ended_at = excluded.ended_at,
         user_id = excluded.user_id,
+        user_email = COALESCE(excluded.user_email, session_traces.user_email),
+        user_display_name = COALESCE(excluded.user_display_name, session_traces.user_display_name),
         git_repo = excluded.git_repo,
         git_branch = excluded.git_branch,
         prompt_count = excluded.prompt_count,
@@ -218,6 +221,8 @@ export class SqliteClient
           row.started_at,
           row.ended_at,
           row.user_id,
+          row.user_email ?? null,
+          row.user_display_name ?? null,
           row.git_repo,
           row.git_branch,
           row.prompt_count,
@@ -440,6 +445,35 @@ export class SqliteClient
     `).run(key, value);
   }
 
+  public getTeamBudget(): { monthlyLimitUsd: number; alertThresholdPercent: number } | undefined {
+    const row = this.db.prepare(
+      "SELECT monthly_limit_usd, alert_threshold_percent FROM team_budgets WHERE id = 1"
+    ).get() as { monthly_limit_usd: number; alert_threshold_percent: number } | undefined;
+    if (row === undefined) return undefined;
+    return {
+      monthlyLimitUsd: row.monthly_limit_usd,
+      alertThresholdPercent: row.alert_threshold_percent
+    };
+  }
+
+  public upsertTeamBudget(limitUsd: number, alertPercent: number): void {
+    this.db.prepare(`
+      INSERT INTO team_budgets (id, monthly_limit_usd, alert_threshold_percent, updated_at)
+      VALUES (1, ?, ?, datetime('now'))
+      ON CONFLICT(id) DO UPDATE SET
+        monthly_limit_usd = excluded.monthly_limit_usd,
+        alert_threshold_percent = excluded.alert_threshold_percent,
+        updated_at = excluded.updated_at
+    `).run(limitUsd, alertPercent);
+  }
+
+  public getMonthSpend(yearMonth: string): number {
+    const row = this.db.prepare(
+      "SELECT COALESCE(SUM(total_cost_usd), 0) AS spend FROM session_traces WHERE substr(started_at, 1, 7) = ?"
+    ).get(yearMonth) as { spend: number };
+    return row.spend;
+  }
+
   public close(): void {
     this.db.close();
   }
@@ -595,6 +629,49 @@ export class SqliteClient
 
     console.log("[agent-trace] migrating: rebuilding session traces with correct models/tools");
     this.rebuildSessionTracesFromEvents();
+  }
+
+  /**
+   * Migration: add team-related columns and tables.
+   */
+  private migrateTeamColumns(): void {
+    const addColumnIfMissing = (table: string, column: string, definition: string): void => {
+      const cols = this.db.prepare(`PRAGMA table_info('${table}')`).all() as { name: string }[];
+      if (!cols.some((c) => c.name === column)) {
+        this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+      }
+    };
+
+    const tracesExist = this.db.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='session_traces'"
+    ).get();
+    if (tracesExist !== undefined) {
+      addColumnIfMissing("session_traces", "user_email", "TEXT");
+      addColumnIfMissing("session_traces", "user_display_name", "TEXT");
+    }
+
+    const eventsExist = this.db.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='agent_events'"
+    ).get();
+    if (eventsExist !== undefined) {
+      addColumnIfMissing("agent_events", "user_email", "TEXT");
+    }
+
+    // Create team_budgets table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS team_budgets (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        monthly_limit_usd REAL NOT NULL,
+        alert_threshold_percent REAL NOT NULL DEFAULT 80,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+
+    // Create indexes for team queries
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_traces_started_at ON session_traces(started_at);
+      CREATE INDEX IF NOT EXISTS idx_traces_user_id ON session_traces(user_id)
+    `);
   }
 
   /**

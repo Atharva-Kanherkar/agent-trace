@@ -17,6 +17,7 @@ export interface ApiRawHttpRequest {
 export interface ApiSessionSummary {
   readonly sessionId: string;
   readonly userId: string;
+  readonly userDisplayName: string | null;
   readonly gitRepo: string | null;
   readonly gitBranch: string | null;
   readonly startedAt: string;
@@ -88,6 +89,73 @@ export interface ApiInsightsGenerateResponse {
   readonly insight: SessionInsight;
 }
 
+export interface ApiTeamOverviewResponse {
+  readonly status: "ok";
+  readonly period: { readonly from: string; readonly to: string };
+  readonly totalCostUsd: number;
+  readonly totalSessions: number;
+  readonly totalCommits: number;
+  readonly totalPullRequests: number;
+  readonly totalLinesAdded: number;
+  readonly totalLinesRemoved: number;
+  readonly memberCount: number;
+  readonly costPerCommit: number;
+  readonly costPerPullRequest: number;
+}
+
+export interface ApiTeamMember {
+  readonly userId: string;
+  readonly displayName: string | null;
+  readonly sessionCount: number;
+  readonly totalCostUsd: number;
+  readonly commitCount: number;
+  readonly prCount: number;
+  readonly linesAdded: number;
+  readonly linesRemoved: number;
+  readonly costPerCommit: number;
+  readonly lastActiveAt: string;
+}
+
+export interface ApiTeamMembersResponse {
+  readonly status: "ok";
+  readonly members: readonly ApiTeamMember[];
+}
+
+export interface ApiTeamCostDailyMemberBreakdown {
+  readonly userId: string;
+  readonly totalCostUsd: number;
+  readonly sessionCount: number;
+}
+
+export interface ApiTeamCostDailyPoint {
+  readonly date: string;
+  readonly totalCostUsd: number;
+  readonly sessionCount: number;
+  readonly byMember: readonly ApiTeamCostDailyMemberBreakdown[];
+}
+
+export interface ApiTeamCostDailyResponse {
+  readonly status: "ok";
+  readonly points: readonly ApiTeamCostDailyPoint[];
+}
+
+export interface ApiTeamBudget {
+  readonly monthlyLimitUsd: number;
+  readonly alertThresholdPercent: number;
+}
+
+export interface ApiTeamBudgetResponse {
+  readonly status: "ok";
+  readonly budget: ApiTeamBudget | null;
+  readonly currentMonthSpend: number;
+  readonly percentUsed: number;
+}
+
+export interface ApiTeamBudgetSaveResponse {
+  readonly status: "ok";
+  readonly budget: ApiTeamBudget;
+}
+
 export type ApiPayload =
   | ApiHealthResponse
   | ApiSessionListResponse
@@ -97,6 +165,11 @@ export type ApiPayload =
   | ApiInsightsSettingsResponse
   | ApiInsightsSettingsSaveResponse
   | ApiInsightsGenerateResponse
+  | ApiTeamOverviewResponse
+  | ApiTeamMembersResponse
+  | ApiTeamCostDailyResponse
+  | ApiTeamBudgetResponse
+  | ApiTeamBudgetSaveResponse
   | ApiErrorResponse;
 
 export interface ApiResponse {
@@ -107,6 +180,8 @@ export interface ApiResponse {
 export interface SessionFilters {
   readonly userId?: string;
   readonly repo?: string;
+  readonly from?: string;
+  readonly to?: string;
 }
 
 export interface ApiSessionRepository {
@@ -124,11 +199,18 @@ export interface ApiInsightsConfigAccessor {
   setConfig(config: InsightsConfig): void;
 }
 
+export interface ApiTeamBudgetStore {
+  getTeamBudget(): ApiTeamBudget | undefined;
+  upsertTeamBudget(limitUsd: number, alertPercent: number): void;
+  getMonthSpend(yearMonth: string): number;
+}
+
 export interface ApiHandlerDependencies {
   readonly startedAtMs: number;
   readonly repository: ApiSessionRepository;
   readonly dailyCostReader?: ApiDailyCostReader;
   readonly insightsConfigAccessor?: ApiInsightsConfigAccessor;
+  readonly teamBudgetStore?: ApiTeamBudgetStore;
 }
 
 export interface ApiServerStartOptions {

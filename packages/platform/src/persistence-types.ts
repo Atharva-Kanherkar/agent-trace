@@ -10,6 +10,7 @@ export interface ClickHouseAgentEventRow {
   readonly session_id: string;
   readonly prompt_id: string | null;
   readonly user_id: string;
+  readonly user_email?: string | null;
   readonly source: string;
   readonly agent_type: string;
   readonly tool_name: string | null;
@@ -53,6 +54,8 @@ export interface ClickHouseSessionTraceRow {
   readonly started_at: string;
   readonly ended_at: string | null;
   readonly user_id: string;
+  readonly user_email?: string | null;
+  readonly user_display_name?: string | null;
   readonly git_repo: string | null;
   readonly git_branch: string | null;
   readonly prompt_count: number;

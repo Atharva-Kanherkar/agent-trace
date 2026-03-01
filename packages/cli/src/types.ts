@@ -42,6 +42,9 @@ export interface CliParsedArgs {
   readonly privacyTier?: PrivacyTier;
   readonly installHooks?: boolean;
   readonly forward?: boolean;
+  readonly teamUrl?: string;
+  readonly teamPrivacyTier?: PrivacyTier;
+  readonly teamToken?: string;
 }
 
 export interface AgentTraceCliConfig {
@@ -50,6 +53,11 @@ export interface AgentTraceCliConfig {
   readonly privacyTier: PrivacyTier;
   readonly hookCommand: string;
   readonly updatedAt: string;
+  readonly userEmail?: string;
+  readonly userName?: string;
+  readonly teamCollectorUrl?: string;
+  readonly teamPrivacyTier?: PrivacyTier;
+  readonly teamAuthToken?: string;
 }
 
 export interface CliConfigStore {
@@ -79,6 +87,9 @@ export interface InitCommandInput {
   readonly privacyTier?: PrivacyTier;
   readonly installHooks?: boolean;
   readonly nowIso?: string;
+  readonly teamUrl?: string;
+  readonly teamPrivacyTier?: PrivacyTier;
+  readonly teamToken?: string;
 }
 
 export interface InitCommandResult {
@@ -182,7 +193,7 @@ export interface CollectorHttpPostResult {
 }
 
 export interface CollectorHttpClient {
-  postJson(url: string, payload: unknown): Promise<CollectorHttpPostResult>;
+  postJson(url: string, payload: unknown, headers?: Readonly<Record<string, string>>): Promise<CollectorHttpPostResult>;
 }
 
 export interface HookForwardInput extends HookHandlerInput {
@@ -195,6 +206,7 @@ export interface HookForwardSuccess {
   readonly collectorUrl: string;
   readonly statusCode: number;
   readonly body: string;
+  readonly teamForwardError?: string;
 }
 
 export interface HookForwardFailure {

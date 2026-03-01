@@ -2,6 +2,9 @@ import type { DashboardRenderOptions } from "./web-types";
 
 export function renderDashboardHtml(options: DashboardRenderOptions = {}): string {
   const title = options.title ?? "agent-trace dashboard";
+  const currentUserEmailJson = options.currentUserEmail !== undefined
+    ? JSON.stringify(options.currentUserEmail)
+    : "null";
 
   // The entire dashboard is a single HTML page with inline CSS + JS.
   // This faithfully replicates the Next.js dashboard-shell.tsx + globals.css.
@@ -178,8 +181,40 @@ th{color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:
 .hljs-property{color:#93c5fd}
 .hljs-addition{color:#4ade80;background:rgba(74,222,128,.08)}
 .hljs-deletion{color:#f87171;background:rgba(248,113,113,.08)}
-@media(max-width:1200px){.mg{grid-template-columns:repeat(2,minmax(0,1fr))}.sg{grid-template-columns:1fr}}
-@media(max-width:760px){.shell{padding:12px 8px 24px}.mg{grid-template-columns:1fr}th:nth-child(5),td:nth-child(5),th:nth-child(7),td:nth-child(7){display:none}.erow{grid-template-columns:18px 1fr}.emeta{grid-column:2}.pg-stats{display:none}}
+.tab-bar{display:flex;gap:0;margin-top:10px;border-bottom:1px solid var(--line)}
+.tab-btn{padding:6px 14px;font-size:12px;font-weight:600;color:var(--text-muted);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;font-family:inherit;letter-spacing:.02em;transition:color .15s,border-color .15s}
+.tab-btn:hover{color:var(--text-primary)}
+.tab-btn.active{color:var(--green);border-bottom-color:var(--green)}
+.tab-content{display:none}.tab-content.active{display:block}
+.team-mg{margin-top:14px;display:grid;gap:8px;grid-template-columns:repeat(5,minmax(0,1fr))}
+.budget-bar{margin-top:12px;padding:10px 12px;border:1px solid var(--panel-border);border-radius:8px;background:var(--panel)}
+.budget-track{height:8px;border-radius:4px;background:var(--panel-muted);margin-top:6px;overflow:hidden}
+.budget-fill{height:100%;border-radius:4px;transition:width .3s}
+.budget-fill.green{background:var(--green)}.budget-fill.orange{background:var(--orange)}.budget-fill.red{background:var(--red)}.budget-fill.pulse{animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.budget-label{font-size:12px;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center}
+.budget-set-btn{padding:4px 10px;font-size:11px;background:var(--panel-muted);border:1px solid var(--panel-border);border-radius:4px;color:var(--text-muted);cursor:pointer;font-family:inherit}
+.budget-set-btn:hover{border-color:var(--green);color:var(--green)}
+.team-table{width:100%;border-collapse:collapse}
+.team-table th,.team-table td{padding:7px 8px;font-size:12px;border-bottom:1px solid var(--line);text-align:left}
+.team-table th{color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:500}
+.team-row{cursor:pointer}.team-row:hover{background:var(--panel-hover)}
+.time-range{display:flex;gap:4px;margin-left:auto}
+.time-range-btn{padding:3px 8px;font-size:10px;background:var(--panel-muted);border:1px solid var(--panel-border);border-radius:4px;color:var(--text-muted);cursor:pointer;font-family:inherit}
+.time-range-btn.active{border-color:var(--green);color:var(--green)}
+.filter-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;font-size:12px;font-weight:600;border:1px solid rgba(74,222,128,.4);color:var(--green);border-radius:6px;margin-left:8px;cursor:pointer;background:var(--green-dim)}
+.filter-chip:hover{background:rgba(74,222,128,.2)}
+.back-team-link{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;font-size:11px;border:1px solid var(--line);color:var(--text-muted);border-radius:6px;margin-left:8px;cursor:pointer}
+.back-team-link:hover{background:var(--panel-hover);color:var(--text-primary)}
+.auth-gate{padding:40px 20px;text-align:center}
+.auth-gate h2{font-size:16px;color:var(--text-primary);margin-bottom:8px}
+.auth-gate p{font-size:12px;color:var(--text-muted);margin-bottom:16px}
+.auth-gate input{width:300px;max-width:80vw;padding:8px 10px;background:var(--bg);border:1px solid var(--panel-border);border-radius:6px;color:var(--text-primary);font-size:12px;font-family:inherit}
+.auth-gate input:focus{outline:none;border-color:var(--green)}
+.auth-gate button{margin-top:8px;padding:8px 20px;background:var(--green);color:#000;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.auth-gate .auth-error{color:var(--red);font-size:11px;margin-top:8px}
+@media(max-width:1200px){.mg{grid-template-columns:repeat(2,minmax(0,1fr))}.sg{grid-template-columns:1fr}.team-mg{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.shell{padding:12px 8px 24px}.mg{grid-template-columns:1fr}.team-mg{grid-template-columns:1fr}th:nth-child(5),td:nth-child(5),th:nth-child(7),td:nth-child(7){display:none}.erow{grid-template-columns:18px 1fr}.emeta{grid-column:2}.pg-stats{display:none}}
 </style>
 </head>
 <body>
@@ -188,8 +223,20 @@ th{color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:
 <h1>${title}</h1>
 <p>session observability for coding agents</p>
 <button class="settings-btn" onclick="openSettings()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 6 0Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>AI</button>
+<div id="tab-bar" class="tab-bar" style="display:none">
+<button class="tab-btn active" onclick="switchTab('sessions')">Sessions</button>
+<button class="tab-btn" onclick="switchTab('team')" id="team-tab-btn">Team</button>
+</div>
 <div id="status" class="status-banner">Connecting...</div>
 </section>
+<div id="auth-gate" class="auth-gate" style="display:none">
+<h2>Authentication Required</h2>
+<p>This team server requires an auth token.</p>
+<input type="password" id="auth-token-input" placeholder="Enter team auth token..." onkeydown="if(event.key==='Enter')submitAuthToken()"/>
+<br/>
+<button onclick="submitAuthToken()">Authenticate</button>
+<div class="auth-error" id="auth-error"></div>
+</div>
 <div id="settings-modal" class="modal-overlay" onclick="if(event.target===this)closeSettings()">
 <div class="modal">
 <button class="modal-close" onclick="closeSettings()">&times;</button>
@@ -212,6 +259,7 @@ th{color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:
 </div>
 </div>
 </div>
+<div id="tab-sessions" class="tab-content active">
 <section class="mg">
 <article class="mc"><div class="label">Sessions</div><div class="val green" id="m-sessions">0</div></article>
 <article class="mc"><div class="label">Total Cost</div><div class="val orange" id="m-cost">$0.00</div></article>
@@ -221,7 +269,7 @@ th{color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:
 </section>
 <section class="sg">
 <section class="panel">
-<header class="ph"><div><h2>Sessions</h2><p id="stream-label">...</p></div></header>
+<header class="ph"><div><h2>My Sessions</h2><p id="stream-label">...</p></div></header>
 <div class="pc"><div id="sessions-area" class="empty">Loading...</div></div>
 </section>
 <section class="panel">
@@ -233,6 +281,53 @@ th{color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:
 <header class="ph"><div><h2>Session Replay</h2><p id="replay-label">select a session</p></div></header>
 <div class="pc" id="replay-area"><div class="empty">No session selected.</div></div>
 </section>
+</div>
+<div id="tab-team" class="tab-content">
+<section class="team-mg">
+<article class="mc"><div class="label">Members</div><div class="val cyan" id="tm-members">0</div></article>
+<article class="mc"><div class="label">Total Cost</div><div class="val orange" id="tm-cost">$0.00</div></article>
+<article class="mc"><div class="label">Sessions</div><div class="val green" id="tm-sessions">0</div></article>
+<article class="mc"><div class="label">Commits</div><div class="val green" id="tm-commits">0</div></article>
+<article class="mc"><div class="label">$/Commit</div><div class="val" id="tm-cpc">$0.00</div></article>
+</section>
+<div id="tm-budget-area" class="budget-bar" style="display:none">
+<div class="budget-label"><span id="tm-budget-label">Budget</span><button class="budget-set-btn" onclick="openBudgetModal()">Set Budget</button></div>
+<div class="budget-track"><div class="budget-fill green" id="tm-budget-fill" style="width:0%"></div></div>
+</div>
+<div id="tm-no-budget" style="margin-top:12px;text-align:right"><button class="budget-set-btn" onclick="openBudgetModal()">Set Budget</button></div>
+<section class="sg" style="margin-top:14px">
+<section class="panel">
+<header class="ph"><div><h2>Team Members</h2><p id="tm-period-label"></p></div><div class="time-range" id="tm-time-range">
+<button class="time-range-btn" onclick="setTeamRange('week')">This week</button>
+<button class="time-range-btn" onclick="setTeamRange('month')">This month</button>
+<button class="time-range-btn active" onclick="setTeamRange('30d')">Last 30 days</button>
+</div></header>
+<div class="pc"><div id="tm-members-area" class="empty">Loading...</div></div>
+<div id="tm-member-sessions" style="display:none">
+<header class="ph" style="border-top:1px solid var(--line)"><div><h2 id="tm-member-sessions-title">Sessions</h2><p id="tm-member-sessions-count"></p></div><div><button class="time-range-btn active" onclick="closeMemberSessions()">Back to Team</button></div></header>
+<div class="pc"><div id="tm-member-sessions-area"></div></div>
+</div>
+</section>
+<section class="panel">
+<header class="ph"><div><h2>Daily Cost</h2><p>stacked by member</p></div></header>
+<div class="pc"><div id="tm-cost-chart" class="empty">Loading...</div></div>
+</section>
+</section>
+</div>
+<div id="budget-modal" class="modal-overlay" onclick="if(event.target===this)closeBudgetModal()">
+<div class="modal">
+<button class="modal-close" onclick="closeBudgetModal()">&times;</button>
+<h3>Set Monthly Budget</h3>
+<label>Monthly Limit (USD)</label>
+<input type="number" id="budget-limit" placeholder="e.g. 3500" min="0" step="100"/>
+<label>Alert Threshold (%)</label>
+<input type="number" id="budget-threshold" value="80" min="0" max="100" step="5"/>
+<div class="modal-actions">
+<button class="modal-save" onclick="saveBudget()">Save Budget</button>
+<span class="modal-status" id="budget-status"></span>
+</div>
+</div>
+</div>
 </main>
 <script>
 (function(){
@@ -243,6 +338,313 @@ var costPoints = [];
 var replay = null;
 var insightsConfigured = false;
 var insightsCache = {};
+var teamData = null;
+var teamRange = '30d';
+var teamESource = null;
+var authToken = localStorage.getItem('agent_trace_auth_token') || '';
+var authRequired = false;
+var currentTab = 'sessions';
+var userIdFilter = null;
+var currentUserEmail = ${currentUserEmailJson};
+var teamMemberFilter = null;
+
+function getAuthHeaders() {
+  var h = {};
+  if (authToken) h['Authorization'] = 'Bearer ' + authToken;
+  return h;
+}
+
+function authFetch(url, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({}, opts.headers || {}, getAuthHeaders());
+  return fetch(url, opts);
+}
+
+function checkAuth() {
+  return fetch('/api/auth/check', { headers: getAuthHeaders() })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      authRequired = data.authRequired;
+      if (authRequired && !data.authValid) {
+        document.getElementById('auth-gate').style.display = 'block';
+        document.getElementById('tab-sessions').classList.remove('active');
+        return false;
+      }
+      document.getElementById('auth-gate').style.display = 'none';
+      return true;
+    })
+    .catch(function() { return true; });
+}
+
+window.submitAuthToken = function() {
+  var input = document.getElementById('auth-token-input');
+  authToken = input.value.trim();
+  localStorage.setItem('agent_trace_auth_token', authToken);
+  document.getElementById('auth-error').textContent = '';
+  checkAuth().then(function(ok) {
+    if (!ok) {
+      document.getElementById('auth-error').textContent = 'Invalid token. Please try again.';
+    } else {
+      document.getElementById('tab-sessions').classList.add('active');
+      startStreaming();
+    }
+  });
+};
+
+window.switchTab = function(tab) {
+  currentTab = tab;
+  var btns = document.querySelectorAll('.tab-btn');
+  for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
+  if (tab === 'sessions') btns[0].classList.add('active');
+  else btns[1].classList.add('active');
+  document.getElementById('tab-sessions').classList.toggle('active', tab === 'sessions');
+  document.getElementById('tab-team').classList.toggle('active', tab === 'team');
+  if (tab === 'team' && !teamESource) startTeamStream();
+};
+
+function getTeamDateRange() {
+  var now = new Date();
+  var y = now.getFullYear();
+  var m = now.getMonth();
+  var from, to;
+  if (teamRange === 'week') {
+    var day = now.getDay();
+    var monday = new Date(now);
+    monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+    from = monday.toISOString().slice(0, 10);
+    to = now.toISOString().slice(0, 10);
+  } else if (teamRange === 'month') {
+    from = y + '-' + String(m + 1).padStart(2, '0') + '-01';
+    var lastDay = new Date(y, m + 1, 0).getDate();
+    to = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
+  } else {
+    var d30 = new Date(now);
+    d30.setDate(d30.getDate() - 30);
+    from = d30.toISOString().slice(0, 10);
+    to = now.toISOString().slice(0, 10);
+  }
+  return { from: from, to: to };
+}
+
+window.setTeamRange = function(range) {
+  teamRange = range;
+  var btns = document.querySelectorAll('.time-range-btn');
+  for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
+  if (range === 'week') btns[0].classList.add('active');
+  else if (range === 'month') btns[1].classList.add('active');
+  else btns[2].classList.add('active');
+  if (teamESource) { teamESource.close(); teamESource = null; }
+  startTeamStream();
+};
+
+function startTeamStream() {
+  var r = getTeamDateRange();
+  var qs = '?from=' + r.from + '&to=' + r.to;
+  teamESource = new EventSource('/api/team/stream' + qs);
+  teamESource.addEventListener('team', function(e) {
+    try { teamData = JSON.parse(e.data); renderTeam(); } catch(err) {}
+  });
+}
+
+function fmtCost(v) { return '$' + (v||0).toFixed(2); }
+function fmtNum(v) { return String(v||0).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ','); }
+
+function timeAgo(isoStr) {
+  if (!isoStr) return '';
+  var diff = Date.now() - new Date(isoStr).getTime();
+  if (diff < 60000) return 'just now';
+  if (diff < 3600000) return Math.floor(diff/60000) + 'm ago';
+  if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
+  return Math.floor(diff/86400000) + 'd ago';
+}
+
+function renderTeam() {
+  if (!teamData) return;
+  var ov = teamData.overview || {};
+  var mb = teamData.members || {};
+  var cs = teamData.cost || {};
+  var bg = teamData.budget || {};
+
+  document.getElementById('tm-members').textContent = fmtNum(ov.memberCount);
+  document.getElementById('tm-cost').textContent = fmtCost(ov.totalCostUsd);
+  document.getElementById('tm-sessions').textContent = fmtNum(ov.totalSessions);
+  document.getElementById('tm-commits').textContent = fmtNum(ov.totalCommits);
+  document.getElementById('tm-cpc').textContent = fmtCost(ov.costPerCommit);
+
+  // Show team tab if multiple members exist
+  if (ov.memberCount > 1) {
+    document.getElementById('tab-bar').style.display = 'flex';
+  }
+
+  // Budget bar
+  if (bg.budget) {
+    document.getElementById('tm-budget-area').style.display = 'block';
+    document.getElementById('tm-no-budget').style.display = 'none';
+    var pct = bg.percentUsed || 0;
+    var fill = document.getElementById('tm-budget-fill');
+    fill.style.width = Math.min(pct, 100) + '%';
+    fill.className = 'budget-fill';
+    if (pct > 100) { fill.classList.add('red', 'pulse'); }
+    else if (pct > 80) { fill.classList.add('red'); }
+    else if (pct > 60) { fill.classList.add('orange'); }
+    else { fill.classList.add('green'); }
+    document.getElementById('tm-budget-label').textContent = Math.round(pct) + '% of $' + bg.budget.monthlyLimitUsd.toLocaleString() + '/mo (' + fmtCost(bg.currentMonthSpend) + ' spent)';
+  } else {
+    document.getElementById('tm-budget-area').style.display = 'none';
+    document.getElementById('tm-no-budget').style.display = 'block';
+  }
+
+  // Period label
+  if (ov.period) {
+    document.getElementById('tm-period-label').textContent = ov.period.from + ' to ' + ov.period.to;
+  }
+
+  // Members table
+  var members = (mb.members || []);
+  if (members.length === 0) {
+    document.getElementById('tm-members-area').innerHTML = '<div class="empty">No team data yet.</div>';
+  } else {
+    var html = '<table class="team-table"><thead><tr><th>Member</th><th>Sessions</th><th>Cost</th><th>Commits</th><th>Lines</th><th>Last Active</th></tr></thead><tbody>';
+    for (var i = 0; i < members.length; i++) {
+      var m = members[i];
+      var name = m.displayName || m.userId;
+      html += '<tr class="team-row" onclick="filterByMember(\\x27' + (m.userId||'').replace(/'/g,"\\\\'") + '\\x27)">';
+      html += '<td><span style="color:var(--text-primary)">' + esc(name) + '</span>';
+      if (m.displayName && m.userId !== m.displayName) html += '<br/><span style="font-size:10px;color:var(--text-dim)">' + esc(m.userId) + '</span>';
+      html += '</td>';
+      html += '<td>' + m.sessionCount + '</td>';
+      html += '<td class="orange">' + fmtCost(m.totalCostUsd) + '</td>';
+      html += '<td>' + m.commitCount + '</td>';
+      html += '<td><span class="ls green">+' + fmtNum(m.linesAdded) + '</span><span class="ls red">-' + fmtNum(m.linesRemoved) + '</span></td>';
+      html += '<td style="color:var(--text-dim)">' + timeAgo(m.lastActiveAt) + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    document.getElementById('tm-members-area').innerHTML = html;
+  }
+
+  // Team daily cost chart (stacked)
+  var points = (cs.points || []).slice(-7);
+  if (points.length === 0) {
+    document.getElementById('tm-cost-chart').innerHTML = '<div class="empty">No cost data.</div>';
+  } else {
+    var maxCost = 0;
+    for (var i = 0; i < points.length; i++) {
+      if (points[i].totalCostUsd > maxCost) maxCost = points[i].totalCostUsd;
+    }
+    var colors = ['var(--green)', 'var(--cyan)', 'var(--orange)', 'var(--purple)', 'var(--yellow)', 'var(--red)', 'var(--text-muted)'];
+    var chartHtml = '<div class="chart">';
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      var barH = maxCost > 0 ? Math.max(3, Math.round((p.totalCostUsd / maxCost) * 140)) : 3;
+      chartHtml += '<div class="chart-col">';
+      chartHtml += '<div class="chart-value">' + fmtCost(p.totalCostUsd) + '</div>';
+      // Stacked bar segments
+      var bm = p.byMember || [];
+      if (bm.length <= 1) {
+        chartHtml += '<div class="chart-bar" style="height:' + barH + 'px"></div>';
+      } else {
+        chartHtml += '<div style="display:flex;flex-direction:column-reverse;height:' + barH + 'px">';
+        for (var j = 0; j < bm.length; j++) {
+          var segH = maxCost > 0 ? Math.max(1, Math.round((bm[j].totalCostUsd / maxCost) * 140)) : 1;
+          var col = colors[j % colors.length];
+          chartHtml += '<div style="height:' + segH + 'px;background:' + col + ';min-height:1px;border-radius:1px"></div>';
+        }
+        chartHtml += '</div>';
+      }
+      chartHtml += '<div class="chart-label">' + p.date.slice(5) + '</div>';
+      chartHtml += '</div>';
+    }
+    chartHtml += '</div>';
+    document.getElementById('tm-cost-chart').innerHTML = chartHtml;
+  }
+}
+
+function esc(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+window.filterByMember = function(userId) {
+  teamMemberFilter = userId;
+  renderMemberSessions();
+};
+
+window.clearFilter = function() {
+  userIdFilter = null;
+  renderSessions();
+};
+
+window.closeMemberSessions = function() {
+  teamMemberFilter = null;
+  document.getElementById('tm-member-sessions').style.display = 'none';
+};
+
+function renderMemberSessions() {
+  if (!teamMemberFilter) return;
+  var memberSessions = sessions.filter(function(s) { return s.userId === teamMemberFilter; });
+  var memberName = teamMemberFilter;
+  memberSessions.forEach(function(s) { if (s.userDisplayName) memberName = s.userDisplayName; });
+  document.getElementById('tm-member-sessions-title').textContent = memberName + ' — Sessions';
+  document.getElementById('tm-member-sessions-count').textContent = memberSessions.length + ' sessions';
+  document.getElementById('tm-member-sessions').style.display = 'block';
+  var area = document.getElementById('tm-member-sessions-area');
+  if (memberSessions.length === 0) {
+    area.innerHTML = '<div class="empty">No sessions for this member.</div>';
+    return;
+  }
+  var h = '<table><thead><tr><th>Session</th><th>Repo</th><th>Started</th><th>Prompts</th><th>Cost</th><th>Commits</th><th>Lines</th></tr></thead><tbody>';
+  memberSessions.forEach(function(s) {
+    var repo = s.gitRepo ? (s.gitBranch ? s.gitRepo + '/' + s.gitBranch : s.gitRepo) : '-';
+    var commits = s.commitCount > 0 ? '<span class="badge green">' + s.commitCount + '</span>' : '<span class="badge dim">0</span>';
+    var lines = (s.linesAdded > 0 || s.linesRemoved > 0) ? '<span class="ls green">+' + s.linesAdded + '</span><span class="ls red">-' + s.linesRemoved + '</span>' : '<span style="color:var(--text-dim)">-</span>';
+    h += '<tr class="srow" data-sid="' + esc(s.sessionId) + '" onclick="selectSession(this.dataset.sid);switchTab(\\x27sessions\\x27)"><td>' + esc(s.sessionId.slice(0,10)) + '</td><td class="repo-cell">' + esc(repo) + '</td><td>' + fmtDate(s.startedAt) + '</td><td>' + s.promptCount + '</td><td>' + fmt$(s.totalCostUsd) + '</td><td>' + commits + '</td><td>' + lines + '</td></tr>';
+  });
+  h += '</tbody></table>';
+  area.innerHTML = h;
+  document.getElementById('tm-member-sessions').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+window.openBudgetModal = function() {
+  document.getElementById('budget-modal').classList.add('open');
+  if (teamData && teamData.budget && teamData.budget.budget) {
+    document.getElementById('budget-limit').value = teamData.budget.budget.monthlyLimitUsd;
+    document.getElementById('budget-threshold').value = teamData.budget.budget.alertThresholdPercent;
+  }
+};
+
+window.closeBudgetModal = function() {
+  document.getElementById('budget-modal').classList.remove('open');
+};
+
+window.saveBudget = function() {
+  var limit = parseFloat(document.getElementById('budget-limit').value);
+  var threshold = parseFloat(document.getElementById('budget-threshold').value) || 80;
+  if (isNaN(limit) || limit < 0) {
+    document.getElementById('budget-status').textContent = 'Invalid limit';
+    document.getElementById('budget-status').className = 'modal-status error';
+    return;
+  }
+  document.getElementById('budget-status').textContent = 'Saving...';
+  document.getElementById('budget-status').className = 'modal-status';
+  authFetch('/api/team/budget', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ monthlyLimitUsd: limit, alertThresholdPercent: threshold })
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    if (data.status === 'ok') {
+      document.getElementById('budget-status').textContent = 'Saved!';
+      document.getElementById('budget-status').className = 'modal-status ok';
+      setTimeout(closeBudgetModal, 800);
+    } else {
+      document.getElementById('budget-status').textContent = data.message || 'Error';
+      document.getElementById('budget-status').className = 'modal-status error';
+    }
+  }).catch(function() {
+    document.getElementById('budget-status').textContent = 'Network error';
+    document.getElementById('budget-status').className = 'modal-status error';
+  });
+};
 
 window.openSettings = function() {
   document.getElementById('settings-modal').classList.add('open');
@@ -543,9 +945,16 @@ window.togglePrompt = function(hd) {
 
 function renderSessions() {
   var area = document.getElementById('sessions-area');
-  if (sessions.length === 0) { area.innerHTML = '<div class="empty">No sessions captured yet.</div>'; return; }
+  var label = document.getElementById('stream-label');
+  var filtered = sessions;
+  // Sessions tab always shows only the current user's sessions
+  if (currentUserEmail) {
+    filtered = sessions.filter(function(s) { return s.userId === currentUserEmail; });
+    label.textContent = filtered.length + ' sessions (you)';
+  }
+  if (filtered.length === 0) { area.innerHTML = '<div class="empty">' + (currentUserEmail ? 'No sessions for you yet. Start a Claude Code session.' : 'No sessions captured yet.') + '</div>'; return; }
   var h = '<table><thead><tr><th>Session</th><th>Repo</th><th>Started</th><th>Prompts</th><th>Cost</th><th>Commits</th><th>Lines</th></tr></thead><tbody>';
-  sessions.forEach(function(s){
+  filtered.forEach(function(s){
     var active = s.sessionId === selectedId ? ' active' : '';
     var repo = s.gitRepo ? (s.gitBranch ? s.gitRepo + '/' + s.gitBranch : s.gitRepo) : '-';
     var commits = s.commitCount > 0 ? '<span class="badge green">' + s.commitCount + '</span>' : '<span class="badge dim">0</span>';
@@ -557,14 +966,15 @@ function renderSessions() {
 }
 
 function renderMetrics() {
-  document.getElementById('m-sessions').textContent = sessions.length;
-  document.getElementById('m-cost').textContent = fmt$(sessions.reduce(function(s,x){return s+x.totalCostUsd;},0));
-  document.getElementById('m-prompts').textContent = sessions.reduce(function(s,x){return s+x.promptCount;},0);
-  document.getElementById('m-tools').textContent = sessions.reduce(function(s,x){return s+x.toolCallCount;},0);
-  var tc = sessions.reduce(function(s,x){return s+x.commitCount;},0);
-  var sc = sessions.filter(function(x){return x.commitCount>0;}).length;
+  var my = currentUserEmail ? sessions.filter(function(s){return s.userId === currentUserEmail;}) : sessions;
+  document.getElementById('m-sessions').textContent = my.length;
+  document.getElementById('m-cost').textContent = fmt$(my.reduce(function(s,x){return s+x.totalCostUsd;},0));
+  document.getElementById('m-prompts').textContent = my.reduce(function(s,x){return s+x.promptCount;},0);
+  document.getElementById('m-tools').textContent = my.reduce(function(s,x){return s+x.toolCallCount;},0);
+  var tc = my.reduce(function(s,x){return s+x.commitCount;},0);
+  var sc = my.filter(function(x){return x.commitCount>0;}).length;
   document.getElementById('m-commits').textContent = tc;
-  document.getElementById('m-commits-det').textContent = sc + '/' + sessions.length + ' sessions produced commits';
+  document.getElementById('m-commits-det').textContent = sc + '/' + my.length + ' sessions produced commits';
 }
 
 function renderCostChart() {
@@ -668,8 +1078,10 @@ function setSessions(raw) {
   sessions = sortLatest(raw.map(parseSummary).filter(Boolean));
   renderMetrics();
   renderSessions();
-  if (sessions.length > 0 && (!selectedId || !sessions.some(function(s){return s.sessionId===selectedId;}))) {
-    selectSession(sessions[0].sessionId);
+  if (teamMemberFilter) renderMemberSessions();
+  var my = currentUserEmail ? sessions.filter(function(s){return s.userId === currentUserEmail;}) : sessions;
+  if (my.length > 0 && (!selectedId || !my.some(function(s){return s.sessionId===selectedId;}))) {
+    selectSession(my[0].sessionId);
   }
 }
 
@@ -714,7 +1126,7 @@ function loadSnapshot() {
   });
 }
 
-function boot() {
+function startStreaming() {
   fetch('/api/settings/insights',{cache:'no-store'}).then(function(r){return r.json();}).then(function(data){
     if(data && data.configured) insightsConfigured = true;
   }).catch(function(){});
@@ -728,6 +1140,12 @@ function boot() {
           document.getElementById('stream-label').textContent = 'live';
           document.getElementById('status').className = 'status-banner';
           document.getElementById('status').textContent = 'Live';
+          // Auto-detect multi-user and show team tab
+          var userIds = {};
+          sessions.forEach(function(s){ if(s.userId && s.userId !== 'unknown_user') userIds[s.userId] = 1; });
+          if (Object.keys(userIds).length > 1) {
+            document.getElementById('tab-bar').style.display = 'flex';
+          }
         }
       });
       es.addEventListener('bridge_error', function(event) {
@@ -742,6 +1160,13 @@ function boot() {
       document.getElementById('stream-label').textContent = 'polling';
     }
     setInterval(function(){ loadSnapshot(); }, 15000);
+  });
+}
+
+function boot() {
+  checkAuth().then(function(ok) {
+    if (!ok) return;
+    startStreaming();
   });
 }
 

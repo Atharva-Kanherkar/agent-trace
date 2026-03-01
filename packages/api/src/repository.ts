@@ -23,6 +23,20 @@ export class InMemorySessionRepository implements ApiSessionRepository {
         return false;
       }
 
+      if (filters.from !== undefined) {
+        const traceDate = trace.startedAt.slice(0, 10);
+        if (traceDate < filters.from) {
+          return false;
+        }
+      }
+
+      if (filters.to !== undefined) {
+        const traceDate = trace.startedAt.slice(0, 10);
+        if (traceDate > filters.to) {
+          return false;
+        }
+      }
+
       return true;
     });
   }

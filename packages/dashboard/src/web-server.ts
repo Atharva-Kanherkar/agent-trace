@@ -369,6 +369,38 @@ export async function startDashboardServer(
     const segments = parsePathSegments(pathname);
     const method = req.method ?? "GET";
 
+    // Allow POST for team budget
+    if (method === "POST" && pathname === "/api/team/budget") {
+      let body = "";
+      req.setEncoding("utf8");
+      req.on("data", (chunk: string) => { body += chunk; });
+      req.on("end", () => {
+        let parsedBody: unknown;
+        try {
+          parsedBody = body.length > 0 ? JSON.parse(body) : {};
+        } catch {
+          sendJson(res, 400, { status: "error", message: "invalid JSON body" });
+          return;
+        }
+        const authHeader = req.headers["authorization"];
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (typeof authHeader === "string") {
+          headers["Authorization"] = authHeader;
+        }
+        void fetch(`${apiBaseUrl}/v1/team/budget`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(parsedBody)
+        }).then(async (apiResponse) => {
+          const payload = await apiResponse.json();
+          sendJson(res, apiResponse.status, payload);
+        }).catch((error: unknown) => {
+          sendJson(res, 502, { status: "error", message: `proxy error: ${String(error)}` });
+        });
+      });
+      return;
+    }
+
     // Allow POST for insights endpoints
     if (method === "POST" && (pathname === "/api/settings/insights" || (segments.length === 4 && segments[0] === "api" && segments[1] === "session" && segments[3] === "insights"))) {
       let body = "";
@@ -464,6 +496,96 @@ export async function startDashboardServer(
       return;
     }
 
+    // Auth check proxy
+    if (pathname === "/api/auth/check") {
+      const authHeader = req.headers["authorization"];
+      const headers: Record<string, string> = {};
+      if (typeof authHeader === "string") {
+        headers["Authorization"] = authHeader;
+      }
+      void fetch(`${apiBaseUrl}/v1/auth/check`, { headers })
+        .then(async (apiResponse) => {
+          const payload = await apiResponse.json();
+          sendJson(res, apiResponse.status, payload);
+        })
+        .catch((error: unknown) => {
+          sendJson(res, 502, { status: "error", message: `proxy error: ${String(error)}` });
+        });
+      return;
+    }
+
+    // Team API proxies
+    if (pathname.startsWith("/api/team/")) {
+      const authHeader = req.headers["authorization"];
+      const headers: Record<string, string> = {};
+      if (typeof authHeader === "string") {
+        headers["Authorization"] = authHeader;
+      }
+      const parsedUrl = new URL(url, "http://localhost");
+      const queryString = parsedUrl.search;
+      const teamPath = pathname.replace("/api/team/", "/v1/team/");
+
+      if (pathname === "/api/team/stream") {
+        // SSE bridge for team data
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
+        res.setHeader("X-Accel-Buffering", "no");
+        res.flushHeaders();
+
+        let closed = false;
+        let writing = false;
+        const writeTeamSnapshot = async (): Promise<void> => {
+          if (closed || writing) return;
+          writing = true;
+          try {
+            const [overviewRes, membersRes, costRes, budgetRes] = await Promise.all([
+              fetch(`${apiBaseUrl}/v1/team/overview${queryString}`, { headers }),
+              fetch(`${apiBaseUrl}/v1/team/members${queryString}`, { headers }),
+              fetch(`${apiBaseUrl}/v1/team/cost/daily${queryString}`, { headers }),
+              fetch(`${apiBaseUrl}/v1/team/budget`, { headers })
+            ]);
+            const overview = await overviewRes.json();
+            const members = await membersRes.json();
+            const cost = await costRes.json();
+            const budget = await budgetRes.json();
+            const payload = JSON.stringify({ overview, members, cost, budget, emittedAt: new Date().toISOString() });
+            res.write("event: team\n");
+            res.write(`data: ${payload}\n\n`);
+          } catch (error: unknown) {
+            res.write("event: bridge_error\n");
+            res.write(`data: ${JSON.stringify({ message: String(error) })}\n\n`);
+          } finally {
+            writing = false;
+          }
+        };
+
+        void writeTeamSnapshot();
+        const interval = setInterval(() => { void writeTeamSnapshot(); }, 2000);
+        const cleanup = (): void => {
+          if (closed) return;
+          closed = true;
+          clearInterval(interval);
+          if (!res.writableEnded) res.end();
+        };
+        req.on("close", cleanup);
+        res.on("close", cleanup);
+        return;
+      }
+
+      // Regular team API proxy (GET)
+      void fetch(`${apiBaseUrl}${teamPath}${queryString}`, { headers })
+        .then(async (apiResponse) => {
+          const payload = await apiResponse.json();
+          sendJson(res, apiResponse.status, payload);
+        })
+        .catch((error: unknown) => {
+          sendJson(res, 502, { status: "error", message: `proxy error: ${String(error)}` });
+        });
+      return;
+    }
+
     if (segments.length === 3 && segments[0] === "api" && segments[1] === "session") {
       const encodedSessionId = segments[2];
       let sessionId = "";
@@ -525,7 +647,7 @@ export async function startDashboardServer(
     }
 
     if (pathname === "/") {
-      sendHtml(res, 200, renderDashboardHtml());
+      sendHtml(res, 200, renderDashboardHtml(options.currentUserEmail !== undefined ? { currentUserEmail: options.currentUserEmail } : {}));
       return;
     }
 

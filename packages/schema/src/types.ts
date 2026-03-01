@@ -89,6 +89,7 @@ export interface PullRequestInfo {
 export interface SessionUser {
   readonly id: string;
   readonly email?: string;
+  readonly displayName?: string;
 }
 
 export interface SessionEnvironment {

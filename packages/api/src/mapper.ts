@@ -5,6 +5,7 @@ export function toSessionSummary(trace: AgentSessionTrace): ApiSessionSummary {
   return {
     sessionId: trace.sessionId,
     userId: trace.user.id,
+    userDisplayName: trace.user.displayName ?? null,
     gitRepo: trace.environment.gitRepo ?? null,
     gitBranch: trace.environment.gitBranch ?? null,
     startedAt: trace.startedAt,

@@ -1,5 +1,12 @@
 import { handleGetInsightsSettings, handlePostInsightsSettings, handlePostSessionInsight } from "./insights-handler";
 import { toSessionSummary } from "./mapper";
+import {
+  handleTeamOverview,
+  handleTeamMembers,
+  handleTeamCostDaily,
+  handleGetTeamBudget,
+  handlePostTeamBudget
+} from "./team-handler";
 import type {
   ApiCostDailyResponse,
   ApiErrorResponse,
@@ -31,9 +38,13 @@ function buildHealth(startedAtMs: number): ApiHealthResponse {
 function parseFilters(searchParams: URLSearchParams): SessionFilters {
   const userId = searchParams.get("userId");
   const repo = searchParams.get("repo");
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
   return {
     ...(userId !== null ? { userId } : {}),
-    ...(repo !== null ? { repo } : {})
+    ...(repo !== null ? { repo } : {}),
+    ...(from !== null && from.length === 10 ? { from } : {}),
+    ...(to !== null && to.length === 10 ? { to } : {})
   };
 }
 
@@ -142,6 +153,26 @@ export async function handleApiRequest(request: ApiRequest, dependencies: ApiHan
       statusCode: 200,
       payload: await buildDailyCostResponse(dependencies, filters)
     };
+  }
+
+  if (request.method === "GET" && pathname === "/v1/team/overview") {
+    return handleTeamOverview(parsedUrl.searchParams, dependencies);
+  }
+
+  if (request.method === "GET" && pathname === "/v1/team/members") {
+    return handleTeamMembers(parsedUrl.searchParams, dependencies);
+  }
+
+  if (request.method === "GET" && pathname === "/v1/team/cost/daily") {
+    return handleTeamCostDaily(parsedUrl.searchParams, dependencies);
+  }
+
+  if (request.method === "GET" && pathname === "/v1/team/budget") {
+    return handleGetTeamBudget(dependencies);
+  }
+
+  if (request.method === "POST" && pathname === "/v1/team/budget") {
+    return handlePostTeamBudget(request.body, dependencies);
   }
 
   if (request.method === "GET" && pathname === "/v1/settings/insights") {

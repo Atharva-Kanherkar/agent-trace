@@ -23,6 +23,9 @@ export function parseArgs(argv: readonly string[]): CliParsedArgs {
   let privacyTier: PrivacyTier | undefined;
   let installHooks: boolean | undefined;
   let forward = false;
+  let teamUrl: string | undefined;
+  let teamPrivacyTier: PrivacyTier | undefined;
+  let teamToken: string | undefined;
 
   for (let i = 3; i < argv.length; i += 1) {
     const token = argv[i];
@@ -60,6 +63,28 @@ export function parseArgs(argv: readonly string[]): CliParsedArgs {
       i += 1;
       continue;
     }
+    if (token === "--team-url") {
+      const value = argv[i + 1];
+      if (typeof value === "string" && value.length > 0) {
+        teamUrl = value;
+      }
+      i += 1;
+      continue;
+    }
+    if (token === "--team-privacy-tier") {
+      const value = argv[i + 1];
+      teamPrivacyTier = parsePrivacyTier(value);
+      i += 1;
+      continue;
+    }
+    if (token === "--team-token") {
+      const value = argv[i + 1];
+      if (typeof value === "string" && value.length > 0) {
+        teamToken = value;
+      }
+      i += 1;
+      continue;
+    }
   }
 
   return {
@@ -68,6 +93,9 @@ export function parseArgs(argv: readonly string[]): CliParsedArgs {
     ...(collectorUrl !== undefined ? { collectorUrl } : {}),
     ...(privacyTier !== undefined ? { privacyTier } : {}),
     ...(installHooks !== undefined ? { installHooks } : {}),
-    ...(forward ? { forward: true } : {})
+    ...(forward ? { forward: true } : {}),
+    ...(teamUrl !== undefined ? { teamUrl } : {}),
+    ...(teamPrivacyTier !== undefined ? { teamPrivacyTier } : {}),
+    ...(teamToken !== undefined ? { teamToken } : {})
   };
 }

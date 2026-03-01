@@ -64,6 +64,7 @@ export interface InMemoryRuntimeOptions {
   readonly persistence?: RuntimePersistence;
   readonly dailyCostReader?: RuntimeDailyCostReader;
   readonly insightsConfigAccessor?: import("../../api/src/types").ApiInsightsConfigAccessor;
+  readonly teamBudgetStore?: import("../../api/src/types").ApiTeamBudgetStore;
 }
 
 export interface RuntimeDailyCostReader {

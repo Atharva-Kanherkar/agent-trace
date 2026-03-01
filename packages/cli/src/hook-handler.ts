@@ -859,9 +859,26 @@ export function runHookHandler(
 
   const now = input.nowIso ?? new Date().toISOString();
   const privacyTier = getPrivacyTier(store, input.configDir);
+  const config = store.readConfig(input.configDir);
   const baselineStore = new FileHookSessionBaselineStore(store, input.configDir);
   const enrichment = enrichHookPayloadWithGitContext(payload, gitContextProvider, baselineStore, now);
-  const envelope = toEnvelope(enrichment.payload, privacyTier, now, {
+
+  // Inject user identity from CLI config into payload
+  let enrichedPayload = enrichment.payload;
+  if (config?.userEmail !== undefined) {
+    const record = enrichedPayload as Record<string, unknown>;
+    if (record["user_email"] === undefined) {
+      enrichedPayload = { ...enrichedPayload, user_email: config.userEmail, user_id: config.userEmail };
+    }
+  }
+  if (config?.userName !== undefined) {
+    const record = enrichedPayload as Record<string, unknown>;
+    if (record["user_name"] === undefined) {
+      enrichedPayload = { ...enrichedPayload, user_name: config.userName };
+    }
+  }
+
+  const envelope = toEnvelope(enrichedPayload, privacyTier, now, {
     ...(enrichment.enriched ? { git_enriched: "1" } : {}),
     ...(enrichment.usedSessionBaselineDelta ? { git_session_delta: "1" } : {})
   });
@@ -879,14 +896,58 @@ export function runHookHandler(
   };
 }
 
+export function redactForPrivacy<TPayload>(
+  envelope: EventEnvelope<TPayload>,
+  targetTier: PrivacyTier
+): EventEnvelope<TPayload> {
+  if (targetTier >= 3) {
+    return envelope;
+  }
+
+  const payload = envelope.payload as Record<string, unknown>;
+  const redacted = { ...payload };
+
+  if (targetTier <= 1) {
+    // Tier 1: metrics only — strip tool I/O, prompts, commands, outputs, commit messages, assistant messages
+    const tier1StripKeys = [
+      "tool_input", "toolInput", "tool_response", "toolResponse",
+      "prompt_text", "promptText", "command", "bash_command", "bashCommand",
+      "stdout", "output", "commit_message", "commitMessage",
+      "last_assistant_message", "lastAssistantMessage",
+      "response_text", "responseText"
+    ];
+    for (const key of tier1StripKeys) {
+      delete redacted[key];
+    }
+  } else if (targetTier === 2) {
+    // Tier 2: tool details kept, strip prompts and assistant responses
+    const tier2StripKeys = [
+      "prompt_text", "promptText",
+      "last_assistant_message", "lastAssistantMessage",
+      "response_text", "responseText"
+    ];
+    for (const key of tier2StripKeys) {
+      delete redacted[key];
+    }
+  }
+
+  return {
+    ...envelope,
+    privacyTier: targetTier,
+    payload: redacted as TPayload
+  };
+}
+
 export class FetchCollectorHttpClient implements CollectorHttpClient {
-  public async postJson(url: string, payload: unknown): Promise<CollectorHttpPostResult> {
+  public async postJson(url: string, payload: unknown, extraHeaders?: Readonly<Record<string, string>>): Promise<CollectorHttpPostResult> {
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...extraHeaders
+      };
       const response = await fetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers,
         body: JSON.stringify(payload)
       });
 
@@ -909,6 +970,22 @@ export class FetchCollectorHttpClient implements CollectorHttpClient {
 
 function isSuccessStatus(statusCode: number): boolean {
   return statusCode >= 200 && statusCode < 300;
+}
+
+function getTeamConfig(store: CliConfigStore, configDir?: string): {
+  readonly teamCollectorUrl?: string;
+  readonly teamPrivacyTier?: PrivacyTier;
+  readonly teamAuthToken?: string;
+} {
+  const config = store.readConfig(configDir);
+  if (config === undefined) {
+    return {};
+  }
+  return {
+    ...(config.teamCollectorUrl !== undefined ? { teamCollectorUrl: config.teamCollectorUrl } : {}),
+    ...(config.teamPrivacyTier !== undefined ? { teamPrivacyTier: config.teamPrivacyTier } : {}),
+    ...(config.teamAuthToken !== undefined ? { teamAuthToken: config.teamAuthToken } : {})
+  };
 }
 
 export async function runHookHandlerAndForward(
@@ -935,7 +1012,43 @@ export async function runHookHandlerAndForward(
   }
 
   const collectorUrl = getCollectorUrl(store, input.configDir, input.collectorUrl);
-  const postResult = await client.postJson(collectorUrl, hookResult.envelope);
+  const teamConfig = getTeamConfig(store, input.configDir);
+
+  // Build local and team POST promises
+  const localPost = client.postJson(collectorUrl, hookResult.envelope);
+
+  let teamPostPromise: Promise<CollectorHttpPostResult | undefined> = Promise.resolve(undefined);
+  if (teamConfig.teamCollectorUrl !== undefined && teamConfig.teamCollectorUrl.length > 0) {
+    const teamTier = teamConfig.teamPrivacyTier ?? 1;
+    const redactedEnvelope = redactForPrivacy(hookResult.envelope, teamTier);
+    const teamHeaders: Record<string, string> = {};
+    if (teamConfig.teamAuthToken !== undefined && teamConfig.teamAuthToken.length > 0) {
+      teamHeaders["Authorization"] = `Bearer ${teamConfig.teamAuthToken}`;
+    }
+    teamPostPromise = client.postJson(teamConfig.teamCollectorUrl, redactedEnvelope, teamHeaders).catch((error: unknown) => ({
+      ok: false,
+      statusCode: 0,
+      body: "",
+      error: String(error)
+    }));
+  }
+
+  // Execute both posts concurrently
+  const [postResult, teamPostResult] = await Promise.all([localPost, teamPostPromise]);
+
+  // Determine team forward error (non-fatal)
+  let teamForwardError: string | undefined;
+  if (teamPostResult !== undefined) {
+    if (!teamPostResult.ok) {
+      teamForwardError = teamPostResult.error ?? "failed to send to team collector";
+    } else if (!isSuccessStatus(teamPostResult.statusCode)) {
+      teamForwardError = `team collector returned status ${String(teamPostResult.statusCode)}`;
+    }
+    if (teamForwardError !== undefined) {
+      process.stderr.write(`[agent-trace] team forward warning: ${teamForwardError}\n`);
+    }
+  }
+
   if (!postResult.ok) {
     return {
       ok: false,
@@ -961,6 +1074,7 @@ export async function runHookHandlerAndForward(
     envelope: hookResult.envelope,
     collectorUrl,
     statusCode: postResult.statusCode,
-    body: postResult.body
+    body: postResult.body,
+    ...(teamForwardError !== undefined ? { teamForwardError } : {})
   };
 }

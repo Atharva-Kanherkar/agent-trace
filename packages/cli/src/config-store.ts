@@ -46,12 +46,23 @@ function parseConfig(raw: string): AgentTraceCliConfig | undefined {
     return undefined;
   }
 
+  const userEmail = typeof parsed["userEmail"] === "string" && parsed["userEmail"].length > 0 ? parsed["userEmail"] : undefined;
+  const userName = typeof parsed["userName"] === "string" && parsed["userName"].length > 0 ? parsed["userName"] : undefined;
+  const teamCollectorUrl = typeof parsed["teamCollectorUrl"] === "string" && parsed["teamCollectorUrl"].length > 0 ? parsed["teamCollectorUrl"] : undefined;
+  const teamPrivacyTier = ensurePrivacyTier(parsed["teamPrivacyTier"]) ? parsed["teamPrivacyTier"] : undefined;
+  const teamAuthToken = typeof parsed["teamAuthToken"] === "string" && parsed["teamAuthToken"].length > 0 ? parsed["teamAuthToken"] : undefined;
+
   return {
     version: "1.0",
     collectorUrl: parsed["collectorUrl"],
     privacyTier: parsed["privacyTier"],
     hookCommand: parsed["hookCommand"],
-    updatedAt: parsed["updatedAt"]
+    updatedAt: parsed["updatedAt"],
+    ...(userEmail !== undefined ? { userEmail } : {}),
+    ...(userName !== undefined ? { userName } : {}),
+    ...(teamCollectorUrl !== undefined ? { teamCollectorUrl } : {}),
+    ...(teamPrivacyTier !== undefined ? { teamPrivacyTier } : {}),
+    ...(teamAuthToken !== undefined ? { teamAuthToken } : {})
   };
 }
 

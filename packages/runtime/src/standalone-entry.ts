@@ -22,6 +22,7 @@ import { parseArgs } from "../../cli/src/args";
 import { runInit } from "../../cli/src/init";
 import { runStatus } from "../../cli/src/status";
 import { runHookHandler, runHookHandlerAndForward } from "../../cli/src/hook-handler";
+import { FileCliConfigStore } from "../../cli/src/config-store";
 
 // ---------------------------------------------------------------------------
 // Server helpers
@@ -185,13 +186,17 @@ async function startServer(): Promise<void> {
   }
 
   const apiBaseUrl = `http://${host === "0.0.0.0" ? "127.0.0.1" : host}:${String(apiPort)}`;
+  const cliConfigStore = new FileCliConfigStore();
+  const cliConfig = cliConfigStore.readConfig();
+  const currentUserEmail = cliConfig?.userEmail;
   let dashboardAddress: string | undefined;
   try {
     const dashboard = await startDashboardServer({
       host,
       port: dashboardPort,
       apiBaseUrl,
-      startedAtMs
+      startedAtMs,
+      ...(currentUserEmail !== undefined ? { currentUserEmail } : {})
     });
     dashboardAddress = dashboard.address;
 

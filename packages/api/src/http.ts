@@ -11,6 +11,17 @@ function normalizeMethod(method: string): ApiMethod | undefined {
   return undefined;
 }
 
+function checkApiAuth(authorizationHeader: string | undefined): boolean {
+  const teamAuthToken = process.env["TEAM_AUTH_TOKEN"];
+  if (teamAuthToken === undefined || teamAuthToken.length === 0) {
+    return true; // No auth required
+  }
+  if (authorizationHeader === undefined || authorizationHeader.length === 0) {
+    return false;
+  }
+  return authorizationHeader === `Bearer ${teamAuthToken}`;
+}
+
 function sendJson(res: http.ServerResponse, statusCode: number, payload: unknown): void {
   const body = JSON.stringify(payload);
   res.statusCode = statusCode;
@@ -120,6 +131,23 @@ export function createApiHttpHandler(
   return (req: http.IncomingMessage, res: http.ServerResponse): void => {
     const method = req.method ?? "GET";
     const url = req.url ?? "/";
+    const authHeader = typeof req.headers["authorization"] === "string" ? req.headers["authorization"] : undefined;
+
+    // Auth check endpoint — always accessible
+    if (method === "GET" && parsePathname(url) === "/v1/auth/check") {
+      const teamAuthToken = process.env["TEAM_AUTH_TOKEN"];
+      const authRequired = teamAuthToken !== undefined && teamAuthToken.length > 0;
+      const authValid = !authRequired || checkApiAuth(authHeader);
+      sendJson(res, 200, { status: "ok", authRequired, authValid });
+      return;
+    }
+
+    // Enforce auth on all other endpoints when TEAM_AUTH_TOKEN is set
+    if (!checkApiAuth(authHeader)) {
+      sendJson(res, 401, { status: "error", message: "authorization required" });
+      return;
+    }
+
     if (isSseSessionsRoute(method, url)) {
       startSessionsSseStream(req, res, dependencies);
       return;

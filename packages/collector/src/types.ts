@@ -46,6 +46,7 @@ export interface CollectorRawHttpRequest {
   readonly method: string;
   readonly url: string;
   readonly rawBody?: string;
+  readonly authorizationHeader?: string;
 }
 
 export interface CollectorResponse {
