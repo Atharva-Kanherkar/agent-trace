@@ -1,6 +1,6 @@
 # agent-trace
 
-**See what Claude Code did, what it cost, and whether it was productive.**
+**See what Claude Code did, what it cost, and whether it was productive — for individuals and teams.**
 
 You run a Claude Code session. It touches 30 files, makes 47 tool calls, and costs $8.
 Was that productive? Did it actually commit anything? Or did it spin in circles?
@@ -68,6 +68,95 @@ Then click "Generate Insight" on any session to get a summary, highlights, and s
 
 ---
 
+## Team Dashboard
+
+Aggregate cost and productivity across your entire engineering team. One shared server, every developer's sessions forwarded automatically.
+
+### Setup
+
+A manager or team lead spins up a shared agent-trace server (with an auth token to control access):
+
+```bash
+TEAM_AUTH_TOKEN=your-secret-token npx agent-trace@latest
+```
+
+Each developer on the team connects their local Claude Code to the shared server:
+
+```bash
+npx agent-trace@latest init \
+  --team-url https://team-server:8317/v1/hooks \
+  --team-token your-secret-token \
+  --team-privacy-tier 2
+```
+
+After this, every Claude Code session is **dual-forwarded** — once to the developer's personal local collector, and once to the team server. The team dashboard aggregates everyone's data.
+
+### What the Team Dashboard Shows
+
+**Team Overview.** Total spend, sessions, commits, PRs, lines changed, and cost-per-commit across all team members for any date range.
+
+**Per-Member Breakdown.** Each developer's cost, session count, commits, PRs, lines added/removed, cost efficiency, and last active timestamp. Sorted by spend.
+
+**Cost Trend.** Daily spend chart with cumulative overlay. Filter by time range (this week, this month, last 30 days).
+
+**Cost Distribution.** Donut chart showing each member's share of total spend.
+
+**Activity Heatmap.** Sessions by hour and day of week — see when the team is most active.
+
+**Top Models & Tools.** Which AI models cost the most, and which tools are used most frequently across the team.
+
+**Per-Member Deep Dive.** Expandable cards for each team member showing their models, tools, repositories, hourly activity, and daily activity patterns.
+
+**Monthly Budget.** Set a monthly spending limit and alert threshold. The dashboard shows current month spend, percentage used, and warns when approaching the limit.
+
+### AI Team Analysis
+
+Generate AI-powered analysis of your team's performance, cost efficiency, and productivity patterns. The AI produces structured output including:
+
+- **Executive Summary** — key findings with specific numbers
+- **Cost Analysis** — members ranked by cost efficiency ($/commit)
+- **Productivity Analysis** — commit velocity, tool diversity, code output
+- **Member Highlights** — per-person strengths, concerns, and recommendations
+- **Risks** — budget trajectory, workload imbalance, burnout signals
+- **Recommendations** — concrete, actionable suggestions referencing specific members and tools
+- **Forecast** — extrapolated monthly spend based on daily trends
+
+### Custom Analysis Prompts
+
+Managers can inject their own company context into the AI analysis so it produces results tailored to their org's needs. Click "Configure Analysis" on the Insights tab to set:
+
+- **Company Context** — describe your company, team structure, project priorities, naming conventions, evaluation criteria
+- **Analysis Guidelines** — what the AI should focus on, what metrics matter most, specific thresholds or criteria for performance reviews
+
+The custom context is stored in SQLite and persists across sessions. When set, it's appended to the system prompt so the AI analysis reflects your org's priorities rather than generic advice.
+
+### Team Membership
+
+There is no explicit team management UI. "Team" means **everyone whose data is in the same database**. Developers join by configuring their local agent-trace to forward to the shared team server URL. Anyone with the auth token can view all team data.
+
+### Privacy Tiers for Team Forwarding
+
+Developers control what gets forwarded to the team server via privacy tiers (set during `init`):
+
+| Tier | What is forwarded to the team server |
+|------|--------------------------------------|
+| **1** | Metadata only — session IDs, timestamps, token counts, cost. Prompts, tool I/O, commit messages, and responses are stripped. |
+| **2** | Metadata + tool call details (file paths, commands, diffs). Prompts and assistant responses are stripped. |
+| **3** | Full payloads including prompts and model responses. No redaction. |
+
+Privacy tiers are enforced client-side at push time. The team server receives only what the developer's privacy tier allows.
+
+### Authentication
+
+Authentication is controlled by the `TEAM_AUTH_TOKEN` environment variable on the server:
+
+- **If set:** All API, collector, and dashboard endpoints require `Authorization: Bearer <token>`. The dashboard prompts for the token on first visit and stores it in localStorage.
+- **If not set:** Everything is open with no authentication.
+
+There is no per-user auth or role-based access control. The token is shared across the team.
+
+---
+
 ## How It Works
 
 agent-trace uses Claude Code's [hooks system](https://docs.anthropic.com/en/docs/claude-code/hooks). When you run `agent-trace init`, it registers hooks in `~/.claude/settings.json` that fire on every session event:
@@ -100,9 +189,18 @@ npx agent-trace@latest --help       # Show all options
 ### Init options
 
 ```bash
+# Personal only
 npx agent-trace@latest init \
   --collector-url http://127.0.0.1:8317/v1/hooks \
   --privacy-tier 2
+
+# Personal + team forwarding
+npx agent-trace@latest init \
+  --collector-url http://127.0.0.1:8317/v1/hooks \
+  --privacy-tier 2 \
+  --team-url https://team-server:8317/v1/hooks \
+  --team-token your-secret-token \
+  --team-privacy-tier 2
 ```
 
 ### Environment variables
@@ -113,6 +211,7 @@ npx agent-trace@latest init \
 | `API_PORT` | `8318` | API port |
 | `DASHBOARD_PORT` | `3100` | Dashboard port |
 | `SQLITE_DB_PATH` | `~/.agent-trace/data.db` | Database file path |
+| `TEAM_AUTH_TOKEN` | *(none)* | Bearer token for API/collector auth. If set, all endpoints require this token. |
 
 ### Privacy Tiers
 
@@ -150,7 +249,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details on the Docker architecture.
 
 ## Roadmap
 
-- [ ] Team dashboard — aggregate cost and productivity across developers ([#1](https://github.com/Atharva-Kanherkar/agent-trace/issues/1))
 - [ ] Export and integrations — CSV export, webhooks, GitHub Action for PR cost comments ([#2](https://github.com/Atharva-Kanherkar/agent-trace/issues/2))
 - [ ] Multi-agent support — Cursor, Windsurf, Aider, and other AI coding agents
 

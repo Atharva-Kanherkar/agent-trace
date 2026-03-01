@@ -1,7 +1,7 @@
 import type { InsightsConfig, InsightsProvider } from "../../schema/src/insights-types";
 
 export interface LlmProvider {
-  complete(system: string, user: string): Promise<string>;
+  complete(system: string, user: string, maxTokens?: number): Promise<string>;
   validate(): Promise<boolean>;
   readonly model: string;
   readonly provider: InsightsProvider;
@@ -70,7 +70,7 @@ function createAnthropicProvider(apiKey: string, model: string): LlmProvider {
   return {
     provider: "anthropic",
     model,
-    async complete(system: string, user: string): Promise<string> {
+    async complete(system: string, user: string, maxTokens?: number): Promise<string> {
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
@@ -80,7 +80,7 @@ function createAnthropicProvider(apiKey: string, model: string): LlmProvider {
         },
         body: JSON.stringify({
           model,
-          max_tokens: 1024,
+          max_tokens: maxTokens ?? 1024,
           system,
           messages: [{ role: "user", content: user }]
         })
@@ -120,7 +120,7 @@ function createOpenAiProvider(apiKey: string, model: string): LlmProvider {
   return {
     provider: "openai",
     model,
-    async complete(system: string, user: string): Promise<string> {
+    async complete(system: string, user: string, maxTokens?: number): Promise<string> {
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
@@ -129,7 +129,7 @@ function createOpenAiProvider(apiKey: string, model: string): LlmProvider {
         },
         body: JSON.stringify({
           model,
-          max_tokens: 1024,
+          max_tokens: maxTokens ?? 1024,
           messages: [
             { role: "system", content: system },
             { role: "user", content: user }
@@ -170,7 +170,7 @@ function createGeminiProvider(apiKey: string, model: string): LlmProvider {
   return {
     provider: "gemini",
     model,
-    async complete(system: string, user: string): Promise<string> {
+    async complete(system: string, user: string, maxTokens?: number): Promise<string> {
       const url = `${baseUrl}/models/${model}:generateContent?key=${apiKey}`;
       const response = await fetch(url, {
         method: "POST",
@@ -178,7 +178,7 @@ function createGeminiProvider(apiKey: string, model: string): LlmProvider {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: system }] },
           contents: [{ parts: [{ text: user }] }],
-          generationConfig: { maxOutputTokens: 1024 }
+          generationConfig: { maxOutputTokens: maxTokens ?? 1024 }
         })
       });
       if (!response.ok) {
@@ -212,7 +212,7 @@ function createOpenRouterProvider(apiKey: string, model: string): LlmProvider {
   return {
     provider: "openrouter",
     model,
-    async complete(system: string, user: string): Promise<string> {
+    async complete(system: string, user: string, maxTokens?: number): Promise<string> {
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
@@ -221,7 +221,7 @@ function createOpenRouterProvider(apiKey: string, model: string): LlmProvider {
         },
         body: JSON.stringify({
           model,
-          max_tokens: 1024,
+          max_tokens: maxTokens ?? 1024,
           messages: [
             { role: "system", content: system },
             { role: "user", content: user }

@@ -1,11 +1,12 @@
-import { handleGetInsightsSettings, handlePostInsightsSettings, handlePostSessionInsight } from "./insights-handler";
+import { handleGetInsightsSettings, handlePostInsightsSettings, handlePostSessionInsight, handlePostTeamInsight, handleGetTeamInsightsContext, handlePostTeamInsightsContext } from "./insights-handler";
 import { toSessionSummary } from "./mapper";
 import {
   handleTeamOverview,
   handleTeamMembers,
   handleTeamCostDaily,
   handleGetTeamBudget,
-  handlePostTeamBudget
+  handlePostTeamBudget,
+  handleTeamAnalytics
 } from "./team-handler";
 import type {
   ApiCostDailyResponse,
@@ -167,12 +168,28 @@ export async function handleApiRequest(request: ApiRequest, dependencies: ApiHan
     return handleTeamCostDaily(parsedUrl.searchParams, dependencies);
   }
 
+  if (request.method === "GET" && pathname === "/v1/team/analytics") {
+    return handleTeamAnalytics(parsedUrl.searchParams, dependencies);
+  }
+
   if (request.method === "GET" && pathname === "/v1/team/budget") {
     return handleGetTeamBudget(dependencies);
   }
 
   if (request.method === "POST" && pathname === "/v1/team/budget") {
     return handlePostTeamBudget(request.body, dependencies);
+  }
+
+  if (request.method === "GET" && pathname === "/v1/team/insights/context") {
+    return handleGetTeamInsightsContext(dependencies);
+  }
+
+  if (request.method === "POST" && pathname === "/v1/team/insights/context") {
+    return handlePostTeamInsightsContext(request.body, dependencies);
+  }
+
+  if (request.method === "POST" && pathname === "/v1/team/insights/generate") {
+    return handlePostTeamInsight(parsedUrl.searchParams, dependencies);
   }
 
   if (request.method === "GET" && pathname === "/v1/settings/insights") {

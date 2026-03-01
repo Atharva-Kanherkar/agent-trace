@@ -1,5 +1,5 @@
 import type { AgentSessionTrace, TimelineEvent } from "../../schema/src/types";
-import type { InsightsConfig, SessionInsight } from "../../schema/src/insights-types";
+import type { InsightsConfig, SessionInsight, TeamInsight, TeamInsightsContext } from "../../schema/src/insights-types";
 
 export type ApiMethod = "GET" | "POST";
 
@@ -89,6 +89,21 @@ export interface ApiInsightsGenerateResponse {
   readonly insight: SessionInsight;
 }
 
+export interface ApiTeamInsightsGenerateResponse {
+  readonly status: "ok";
+  readonly insight: TeamInsight;
+}
+
+export interface ApiTeamInsightsContextResponse {
+  readonly status: "ok";
+  readonly configured: boolean;
+  readonly context?: TeamInsightsContext;
+}
+
+export interface ApiTeamInsightsContextSaveResponse {
+  readonly status: "ok";
+}
+
 export interface ApiTeamOverviewResponse {
   readonly status: "ok";
   readonly period: { readonly from: string; readonly to: string };
@@ -156,6 +171,71 @@ export interface ApiTeamBudgetSaveResponse {
   readonly budget: ApiTeamBudget;
 }
 
+export interface ApiTeamAnalyticsModelUsage {
+  readonly model: string;
+  readonly sessionCount: number;
+  readonly totalCostUsd: number;
+}
+
+export interface ApiTeamAnalyticsToolUsage {
+  readonly tool: string;
+  readonly callCount: number;
+}
+
+export interface ApiTeamAnalyticsRepoUsage {
+  readonly repo: string;
+  readonly sessionCount: number;
+  readonly commitCount: number;
+}
+
+export interface ApiTeamAnalyticsMember {
+  readonly userId: string;
+  readonly displayName: string | null;
+  readonly totalCostUsd: number;
+  readonly sessionCount: number;
+  readonly commitCount: number;
+  readonly prCount: number;
+  readonly linesAdded: number;
+  readonly linesRemoved: number;
+  readonly avgSessionCostUsd: number;
+  readonly costPerCommit: number;
+  readonly totalInputTokens: number;
+  readonly totalOutputTokens: number;
+  readonly models: readonly ApiTeamAnalyticsModelUsage[];
+  readonly tools: readonly ApiTeamAnalyticsToolUsage[];
+  readonly repos: readonly ApiTeamAnalyticsRepoUsage[];
+  readonly hourlyActivity: readonly number[];
+  readonly dailyActivity: readonly number[];
+}
+
+export interface ApiTeamAnalyticsHeatmapCell {
+  readonly hour: number;
+  readonly day: number;
+  readonly count: number;
+}
+
+export interface ApiTeamAnalyticsCostTrendPoint {
+  readonly date: string;
+  readonly costUsd: number;
+  readonly sessionCount: number;
+  readonly cumulativeCostUsd: number;
+}
+
+export interface ApiTeamAnalyticsResponse {
+  readonly status: "ok";
+  readonly period: { readonly from: string; readonly to: string };
+  readonly memberAnalytics: readonly ApiTeamAnalyticsMember[];
+  readonly topModels: readonly ApiTeamAnalyticsModelUsage[];
+  readonly topTools: readonly ApiTeamAnalyticsToolUsage[];
+  readonly hourlyHeatmap: readonly ApiTeamAnalyticsHeatmapCell[];
+  readonly costTrend: readonly ApiTeamAnalyticsCostTrendPoint[];
+  readonly avgCostPerSession: number;
+  readonly avgCommitsPerSession: number;
+  readonly avgCostPerCommit: number;
+  readonly totalTokensUsed: number;
+  readonly costEfficiencyScore: number;
+}
+
 export type ApiPayload =
   | ApiHealthResponse
   | ApiSessionListResponse
@@ -170,6 +250,10 @@ export type ApiPayload =
   | ApiTeamCostDailyResponse
   | ApiTeamBudgetResponse
   | ApiTeamBudgetSaveResponse
+  | ApiTeamAnalyticsResponse
+  | ApiTeamInsightsGenerateResponse
+  | ApiTeamInsightsContextResponse
+  | ApiTeamInsightsContextSaveResponse
   | ApiErrorResponse;
 
 export interface ApiResponse {
@@ -197,6 +281,8 @@ export interface ApiDailyCostReader {
 export interface ApiInsightsConfigAccessor {
   getConfig(): InsightsConfig | undefined;
   setConfig(config: InsightsConfig): void;
+  getTeamInsightsContext(): TeamInsightsContext | undefined;
+  setTeamInsightsContext(context: TeamInsightsContext): void;
 }
 
 export interface ApiTeamBudgetStore {

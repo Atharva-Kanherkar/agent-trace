@@ -12,7 +12,7 @@ import type {
   PostgresPullRequestRow
 } from "../../platform/src/persistence-types";
 import type { AgentSessionTrace, CommitInfo, PullRequestInfo } from "../../schema/src/types";
-import type { InsightsConfig, InsightsProvider } from "../../schema/src/insights-types";
+import type { InsightsConfig, InsightsProvider, TeamInsightsContext } from "../../schema/src/insights-types";
 import type { ApiInsightsConfigAccessor } from "../../api/src/types";
 import { calculateCostUsd } from "../../schema/src/pricing";
 import { createInMemoryRuntime, type InMemoryRuntime } from "./runtime";
@@ -179,6 +179,7 @@ const VALID_INSIGHTS_PROVIDERS: readonly string[] = ["anthropic", "openai", "gem
 
 function createSqliteInsightsConfigAccessor(sqlite: SqliteClient): ApiInsightsConfigAccessor {
   let cached: InsightsConfig | undefined;
+  let cachedContext: TeamInsightsContext | undefined;
 
   const raw = sqlite.getSetting("insights_config");
   if (raw !== undefined) {
@@ -199,6 +200,25 @@ function createSqliteInsightsConfigAccessor(sqlite: SqliteClient): ApiInsightsCo
     }
   }
 
+  const rawContext = sqlite.getSetting("team_insights_context");
+  if (rawContext !== undefined) {
+    try {
+      const parsed: unknown = JSON.parse(rawContext);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        const obj = parsed as Record<string, unknown>;
+        if (typeof obj["companyContext"] === "string" || typeof obj["analysisGuidelines"] === "string") {
+          cachedContext = {
+            companyContext: typeof obj["companyContext"] === "string" ? obj["companyContext"] : "",
+            analysisGuidelines: typeof obj["analysisGuidelines"] === "string" ? obj["analysisGuidelines"] : "",
+            updatedAt: typeof obj["updatedAt"] === "string" ? obj["updatedAt"] : new Date().toISOString()
+          };
+        }
+      }
+    } catch {
+      // ignore corrupt data
+    }
+  }
+
   return {
     getConfig(): InsightsConfig | undefined {
       return cached;
@@ -206,6 +226,13 @@ function createSqliteInsightsConfigAccessor(sqlite: SqliteClient): ApiInsightsCo
     setConfig(config: InsightsConfig): void {
       cached = config;
       sqlite.upsertSetting("insights_config", JSON.stringify(config));
+    },
+    getTeamInsightsContext(): TeamInsightsContext | undefined {
+      return cachedContext;
+    },
+    setTeamInsightsContext(context: TeamInsightsContext): void {
+      cachedContext = context;
+      sqlite.upsertSetting("team_insights_context", JSON.stringify(context));
     }
   };
 }

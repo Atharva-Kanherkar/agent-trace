@@ -401,6 +401,65 @@ export async function startDashboardServer(
       return;
     }
 
+    // Allow POST for team insights context
+    if (method === "POST" && pathname === "/api/team/insights/context") {
+      let body = "";
+      req.setEncoding("utf8");
+      req.on("data", (chunk: string) => { body += chunk; });
+      req.on("end", () => {
+        let parsedBody: unknown;
+        try {
+          parsedBody = body.length > 0 ? JSON.parse(body) : {};
+        } catch {
+          sendJson(res, 400, { status: "error", message: "invalid JSON body" });
+          return;
+        }
+        const authHeader = req.headers["authorization"];
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (typeof authHeader === "string") {
+          headers["Authorization"] = authHeader;
+        }
+        void fetch(`${apiBaseUrl}/v1/team/insights/context`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(parsedBody)
+        }).then(async (apiResponse) => {
+          const payload = await apiResponse.json();
+          sendJson(res, apiResponse.status, payload);
+        }).catch((error: unknown) => {
+          sendJson(res, 502, { status: "error", message: `proxy error: ${String(error)}` });
+        });
+      });
+      return;
+    }
+
+    // Allow POST for team insights generate
+    if (method === "POST" && pathname === "/api/team/insights/generate") {
+      let body = "";
+      req.setEncoding("utf8");
+      req.on("data", (chunk: string) => { body += chunk; });
+      req.on("end", () => {
+        const parsedUrl = new URL(url, "http://localhost");
+        const queryString = parsedUrl.search;
+        const authHeader = req.headers["authorization"];
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (typeof authHeader === "string") {
+          headers["Authorization"] = authHeader;
+        }
+        void fetch(`${apiBaseUrl}/v1/team/insights/generate${queryString}`, {
+          method: "POST",
+          headers,
+          body: body.length > 0 ? body : "{}"
+        }).then(async (apiResponse) => {
+          const payload = await apiResponse.json();
+          sendJson(res, apiResponse.status, payload);
+        }).catch((error: unknown) => {
+          sendJson(res, 502, { status: "error", message: `proxy error: ${String(error)}` });
+        });
+      });
+      return;
+    }
+
     // Allow POST for insights endpoints
     if (method === "POST" && (pathname === "/api/settings/insights" || (segments.length === 4 && segments[0] === "api" && segments[1] === "session" && segments[3] === "insights"))) {
       let body = "";
