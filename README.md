@@ -58,8 +58,9 @@ That's it. Every Claude Code session is now captured automatically.
 
 <img width="1797" height="846" alt="image" src="https://github.com/user-attachments/assets/6bbf3b59-c8e7-45a3-b0ca-914167cb61bc" />
 
+<img width="819" height="637" alt="image" src="https://github.com/user-attachments/assets/de0bd1cc-c6f0-4297-8114-02854b7fd7e9" />
 
-
+<img width="1818" height="340" alt="image" src="https://github.com/user-attachments/assets/696551bf-3e94-4b3d-8b61-1f5569d6d7eb" />
 
 
 
