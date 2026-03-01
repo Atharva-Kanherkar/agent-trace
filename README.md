@@ -7,7 +7,7 @@ Was that productive? Did it actually commit anything? Or did it spin in circles?
 
 agent-trace answers that. It captures every session automatically via Claude Code hooks, and gives you a dashboard showing cost, commits, PRs, and full prompt-by-prompt replay. Self-hosted — your data never leaves your machine.
 
-<!-- TODO: Add a GIF/screenshot of the dashboard here -->
+<img width="1785" height="819" alt="Dashboard overview — session list with cost, commits, lines changed, and 7-day spend chart" src="https://github.com/user-attachments/assets/0761c530-cd35-4814-8107-72bf7df83f40" />
 
 ---
 
@@ -34,11 +34,17 @@ That's it. Every Claude Code session is now captured automatically.
 
 **Git outcomes.** Which sessions produced commits. Which opened PRs (with state: open, merged, closed, draft). What branch the work happened on. Cost per commit.
 
+<img width="1797" height="846" alt="Session replay — outcome section with commit SHA, branch, lines changed, and numbered prompt timeline" src="https://github.com/user-attachments/assets/6bbf3b59-c8e7-45a3-b0ca-914167cb61bc" />
+
 **Prompt-by-prompt replay.** For each thing you asked, see exactly what happened:
 - Bash commands that were run (syntax-highlighted)
 - File edits with inline diffs (red/green)
 - Files read, searches performed, files written
 - Agent response with code blocks highlighted per language
+
+<img width="1797" height="856" alt="Prompt replay — Bash commands and file writes with syntax-highlighted code" src="https://github.com/user-attachments/assets/d972590c-8685-4331-9354-01a25a4014db" />
+
+<img width="1740" height="811" alt="Session replay — PR state badges and implementation plan view" src="https://github.com/user-attachments/assets/10cf89d6-8b52-4421-a48a-c2ff5fc4ead2" />
 
 **Quality signals at a glance.** The session list shows commit count, lines changed (+/-), and cost — so you can immediately tell which sessions were productive and which burned tokens doing nothing.
 
@@ -48,24 +54,19 @@ That's it. Every Claude Code session is now captured automatically.
 
 ---
 
-### Images 
+## AI Insights (BYOK)
 
-<img width="1785" height="819" alt="image" src="https://github.com/user-attachments/assets/0761c530-cd35-4814-8107-72bf7df83f40" />
+Bring your own API key to get AI-generated analysis of any session. Supports Anthropic, OpenAI, Gemini, and OpenRouter.
 
-<img width="1797" height="856" alt="image" src="https://github.com/user-attachments/assets/d972590c-8685-4331-9354-01a25a4014db" />
+Click the gear icon to configure your provider and API key. Your key is stored locally in SQLite and never sent anywhere except to your chosen provider.
 
-<img width="1740" height="811" alt="image" src="https://github.com/user-attachments/assets/10cf89d6-8b52-4421-a48a-c2ff5fc4ead2" />
+<img width="819" height="637" alt="AI Insights settings — provider selection, API key input, and configuration status" src="https://github.com/user-attachments/assets/de0bd1cc-c6f0-4297-8114-02854b7fd7e9" />
 
-<img width="1797" height="846" alt="image" src="https://github.com/user-attachments/assets/6bbf3b59-c8e7-45a3-b0ca-914167cb61bc" />
+Then click "Generate Insight" on any session to get a summary, highlights, and suggestions.
 
-<img width="819" height="637" alt="image" src="https://github.com/user-attachments/assets/de0bd1cc-c6f0-4297-8114-02854b7fd7e9" />
+<img width="1818" height="340" alt="AI-generated session insight — summary, highlights, and cost efficiency note" src="https://github.com/user-attachments/assets/696551bf-3e94-4b3d-8b61-1f5569d6d7eb" />
 
-<img width="1818" height="340" alt="image" src="https://github.com/user-attachments/assets/696551bf-3e94-4b3d-8b61-1f5569d6d7eb" />
-
-
-
-
-
+---
 
 ## How It Works
 
