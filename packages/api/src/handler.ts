@@ -1,3 +1,4 @@
+import { handleGetInsightsSettings, handlePostInsightsSettings, handlePostSessionInsight } from "./insights-handler";
 import { toSessionSummary } from "./mapper";
 import type {
   ApiCostDailyResponse,
@@ -141,6 +142,19 @@ export async function handleApiRequest(request: ApiRequest, dependencies: ApiHan
       statusCode: 200,
       payload: await buildDailyCostResponse(dependencies, filters)
     };
+  }
+
+  if (request.method === "GET" && pathname === "/v1/settings/insights") {
+    return handleGetInsightsSettings(dependencies);
+  }
+
+  if (request.method === "POST" && pathname === "/v1/settings/insights") {
+    return handlePostInsightsSettings(request.body, dependencies);
+  }
+
+  const insightsMatch = pathname.match(/^\/v1\/sessions\/([^/]+)\/insights$/);
+  if (request.method === "POST" && insightsMatch !== null && insightsMatch[1] !== undefined) {
+    return handlePostSessionInsight(decodeURIComponent(insightsMatch[1]), dependencies);
   }
 
   if (request.method === "GET") {

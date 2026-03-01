@@ -35,7 +35,7 @@ test("raw API adapter accepts GET requests", async () => {
 test("raw API adapter rejects unsupported methods", async () => {
   const response = await handleApiRawHttpRequest(
     {
-      method: "POST",
+      method: "DELETE",
       url: "/v1/sessions"
     },
     createDependencies()

@@ -5,7 +5,7 @@ import { toSessionSummary } from "./mapper";
 import type { ApiHandlerDependencies, ApiMethod, ApiRawHttpRequest, ApiResponse } from "./types";
 
 function normalizeMethod(method: string): ApiMethod | undefined {
-  if (method === "GET") {
+  if (method === "GET" || method === "POST") {
     return method;
   }
   return undefined;
@@ -70,7 +70,7 @@ function startSessionsSseStream(
 }
 
 export async function handleApiRawHttpRequest(
-  request: ApiRawHttpRequest,
+  request: ApiRawHttpRequest & { readonly body?: unknown },
   dependencies: ApiHandlerDependencies
 ): Promise<ApiResponse> {
   const method = normalizeMethod(request.method);
@@ -87,10 +87,31 @@ export async function handleApiRawHttpRequest(
   return handleApiRequest(
     {
       method,
-      url: request.url
+      url: request.url,
+      ...(request.body !== undefined ? { body: request.body } : {})
     },
     dependencies
   );
+}
+
+function readRequestBody(req: http.IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    req.setEncoding("utf8");
+    req.on("data", (chunk) => { data += chunk; });
+    req.on("end", () => {
+      if (data.length === 0) {
+        resolve(undefined);
+        return;
+      }
+      try {
+        resolve(JSON.parse(data));
+      } catch {
+        reject(new Error("invalid JSON body"));
+      }
+    });
+    req.on("error", (error) => reject(error));
+  });
 }
 
 export function createApiHttpHandler(
@@ -104,16 +125,30 @@ export function createApiHttpHandler(
       return;
     }
 
-    void handleApiRawHttpRequest(
-      {
-        method,
-        url
-      },
-      dependencies
-    ).then((response) => {
-      sendJson(res, response.statusCode, response.payload);
-    }).catch(() => {
-      sendJson(res, 500, { status: "error", message: "internal server error" });
-    });
+    const dispatch = (body?: unknown): void => {
+      void handleApiRawHttpRequest(
+        {
+          method,
+          url,
+          ...(body !== undefined ? { body } : {})
+        },
+        dependencies
+      ).then((response) => {
+        sendJson(res, response.statusCode, response.payload);
+      }).catch(() => {
+        sendJson(res, 500, { status: "error", message: "internal server error" });
+      });
+    };
+
+    if (method === "POST") {
+      readRequestBody(req).then((body) => {
+        dispatch(body);
+      }).catch(() => {
+        sendJson(res, 400, { status: "error", message: "invalid request body" });
+      });
+      return;
+    }
+
+    dispatch();
   };
 }

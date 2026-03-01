@@ -369,6 +369,42 @@ export async function startDashboardServer(
     const segments = parsePathSegments(pathname);
     const method = req.method ?? "GET";
 
+    // Allow POST for insights endpoints
+    if (method === "POST" && (pathname === "/api/settings/insights" || (segments.length === 4 && segments[0] === "api" && segments[1] === "session" && segments[3] === "insights"))) {
+      let body = "";
+      req.setEncoding("utf8");
+      req.on("data", (chunk: string) => { body += chunk; });
+      req.on("end", () => {
+        let parsedBody: unknown;
+        try {
+          parsedBody = body.length > 0 ? JSON.parse(body) : {};
+        } catch {
+          sendJson(res, 400, { status: "error", message: "invalid JSON body" });
+          return;
+        }
+
+        let apiPath: string;
+        if (pathname === "/api/settings/insights") {
+          apiPath = "/v1/settings/insights";
+        } else {
+          const sessionId = segments[2];
+          apiPath = `/v1/sessions/${encodeURIComponent(sessionId ?? "")}/insights`;
+        }
+
+        void fetch(`${apiBaseUrl}${apiPath}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(parsedBody)
+        }).then(async (apiResponse) => {
+          const payload = await apiResponse.json();
+          sendJson(res, apiResponse.status, payload);
+        }).catch((error: unknown) => {
+          sendJson(res, 502, { status: "error", message: `proxy error: ${String(error)}` });
+        });
+      });
+      return;
+    }
+
     if (method !== "GET") {
       sendJson(res, 405, {
         status: "error",
@@ -472,6 +508,18 @@ export async function startDashboardServer(
             status: "error",
             message: `failed to fetch session replay: ${String(error)}`
           });
+        });
+      return;
+    }
+
+    if (pathname === "/api/settings/insights") {
+      void fetch(`${apiBaseUrl}/v1/settings/insights`)
+        .then(async (apiResponse) => {
+          const payload = await apiResponse.json();
+          sendJson(res, apiResponse.status, payload);
+        })
+        .catch((error: unknown) => {
+          sendJson(res, 502, { status: "error", message: `proxy error: ${String(error)}` });
         });
       return;
     }

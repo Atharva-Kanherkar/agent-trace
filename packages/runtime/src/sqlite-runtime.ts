@@ -12,6 +12,8 @@ import type {
   PostgresPullRequestRow
 } from "../../platform/src/persistence-types";
 import type { AgentSessionTrace, CommitInfo, PullRequestInfo } from "../../schema/src/types";
+import type { InsightsConfig, InsightsProvider } from "../../schema/src/insights-types";
+import type { ApiInsightsConfigAccessor } from "../../api/src/types";
 import { calculateCostUsd } from "../../schema/src/pricing";
 import { createInMemoryRuntime, type InMemoryRuntime } from "./runtime";
 import type { RuntimePersistence, RuntimePersistenceSnapshot, RuntimeEnvelope, RuntimeDailyCostReader } from "./types";
@@ -163,6 +165,7 @@ export interface SqliteRuntimeOptions {
   readonly syncIntervalMs?: number;
   readonly bootstrapLimit?: number;
   readonly eventLimit?: number;
+  readonly insightsConfigAccessor?: import("../../api/src/types").ApiInsightsConfigAccessor;
 }
 
 export interface SqliteRuntimeHandle {
@@ -172,15 +175,52 @@ export interface SqliteRuntimeHandle {
   close(): Promise<void>;
 }
 
+const VALID_INSIGHTS_PROVIDERS: readonly string[] = ["anthropic", "openai", "gemini", "openrouter"];
+
+function createSqliteInsightsConfigAccessor(sqlite: SqliteClient): ApiInsightsConfigAccessor {
+  let cached: InsightsConfig | undefined;
+
+  const raw = sqlite.getSetting("insights_config");
+  if (raw !== undefined) {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        const obj = parsed as Record<string, unknown>;
+        if (typeof obj["provider"] === "string" && VALID_INSIGHTS_PROVIDERS.includes(obj["provider"]) && typeof obj["apiKey"] === "string") {
+          cached = {
+            provider: obj["provider"] as InsightsProvider,
+            apiKey: obj["apiKey"],
+            ...(typeof obj["model"] === "string" && obj["model"].length > 0 ? { model: obj["model"] } : {})
+          };
+        }
+      }
+    } catch {
+      // ignore corrupt data
+    }
+  }
+
+  return {
+    getConfig(): InsightsConfig | undefined {
+      return cached;
+    },
+    setConfig(config: InsightsConfig): void {
+      cached = config;
+      sqlite.upsertSetting("insights_config", JSON.stringify(config));
+    }
+  };
+}
+
 export function createSqliteBackedRuntime(options: SqliteRuntimeOptions): SqliteRuntimeHandle {
   const sqlite = new SqliteClient(options.dbPath);
   const persistence = new SqlitePersistence(sqlite);
   const dailyCostReader = new SqliteDailyCostReader(sqlite);
+  const insightsConfigAccessor = options.insightsConfigAccessor ?? createSqliteInsightsConfigAccessor(sqlite);
 
   const runtime = createInMemoryRuntime({
     ...(options.startedAtMs !== undefined ? { startedAtMs: options.startedAtMs } : {}),
     persistence,
-    dailyCostReader
+    dailyCostReader,
+    insightsConfigAccessor
   });
 
   const hydratedCount = hydrateFromSqlite(runtime, sqlite, options.bootstrapLimit, options.eventLimit);

@@ -128,6 +128,40 @@ th{color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:
 .pr-repo{color:var(--text-muted)}
 .pr-link{color:var(--text-dim);text-decoration:none;font-size:11px}
 .pr-link:hover{color:var(--cyan);text-decoration:underline}
+.settings-btn{position:absolute;right:16px;top:16px;background:var(--panel-muted);border:1px solid var(--panel-border);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--text-muted);font-size:12px;font-family:inherit;display:flex;align-items:center;gap:4px;transition:border-color .15s,color .15s}
+.settings-btn:hover{border-color:var(--green);color:var(--green)}
+.settings-btn svg{width:14px;height:14px}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;justify-content:center;align-items:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--panel);border:1px solid var(--panel-border);border-radius:10px;padding:20px;width:420px;max-width:90vw;position:relative}
+.modal h3{margin:0 0 16px;font-size:14px;font-weight:600;color:var(--text-primary)}
+.modal-close{position:absolute;right:12px;top:12px;background:none;border:none;color:var(--text-dim);font-size:18px;cursor:pointer;padding:4px 8px;border-radius:4px}
+.modal-close:hover{color:var(--text-primary);background:var(--panel-hover)}
+.modal label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);margin-bottom:4px;margin-top:12px}
+.modal select,.modal input{width:100%;box-sizing:border-box;padding:8px 10px;background:var(--bg);border:1px solid var(--panel-border);border-radius:6px;color:var(--text-primary);font-size:12px;font-family:inherit}
+.modal select:focus,.modal input:focus{outline:none;border-color:var(--green)}
+.modal-actions{margin-top:16px;display:flex;gap:8px;align-items:center}
+.modal-save{padding:8px 16px;background:var(--green);color:#000;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.modal-save:hover{opacity:.9}
+.modal-save:disabled{opacity:.5;cursor:not-allowed}
+.modal-status{font-size:11px;color:var(--text-muted);flex:1}
+.modal-status.error{color:var(--red)}
+.modal-status.ok{color:var(--green)}
+.insight-panel{border:1px solid rgba(192,132,252,.2);border-radius:8px;padding:12px;margin-bottom:12px;background:rgba(192,132,252,.04)}
+.insight-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.insight-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--purple)}
+.insight-meta{font-size:10px;color:var(--text-dim)}
+.insight-summary{font-size:12px;color:var(--text-primary);line-height:1.6;margin-bottom:8px}
+.insight-section{margin-bottom:6px}
+.insight-section-title{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim);margin-bottom:4px}
+.insight-item{font-size:12px;color:var(--text-muted);line-height:1.5;padding:2px 0 2px 12px;position:relative}
+.insight-item::before{content:'>';position:absolute;left:0;color:var(--purple)}
+.insight-cost{font-size:11px;color:var(--orange);margin-top:4px}
+.insight-gen-btn{padding:6px 14px;background:var(--purple-dim);color:var(--purple);border:1px solid rgba(192,132,252,.3);border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;transition:background .15s}
+.insight-gen-btn:hover{background:rgba(192,132,252,.15)}
+.insight-gen-btn:disabled{opacity:.5;cursor:not-allowed}
+.insight-loading{font-size:12px;color:var(--text-muted);padding:8px 0}
+.insight-error{font-size:12px;color:var(--red);padding:8px 0}
 .pcommits{border:1px solid rgba(250,204,21,.15);border-radius:4px;padding:6px 8px;margin-bottom:8px;background:rgba(250,204,21,.04)}
 .pcommit{display:flex;align-items:center;gap:8px;padding:2px 0;font-size:12px}
 .hljs{background:transparent!important;color:var(--text-primary)}
@@ -150,11 +184,34 @@ th{color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:
 </head>
 <body>
 <main class="shell">
-<section class="hero">
+<section class="hero" style="position:relative">
 <h1>${title}</h1>
 <p>session observability for coding agents</p>
+<button class="settings-btn" onclick="openSettings()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 6 0Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>AI</button>
 <div id="status" class="status-banner">Connecting...</div>
 </section>
+<div id="settings-modal" class="modal-overlay" onclick="if(event.target===this)closeSettings()">
+<div class="modal">
+<button class="modal-close" onclick="closeSettings()">&times;</button>
+<h3>AI Insights Settings</h3>
+<p style="font-size:11px;color:var(--text-muted);margin:0 0 8px">Configure your own API key to generate AI-powered session insights.</p>
+<label>Provider</label>
+<select id="cfg-provider">
+<option value="anthropic">Anthropic</option>
+<option value="openai">OpenAI</option>
+<option value="gemini">Gemini</option>
+<option value="openrouter">OpenRouter</option>
+</select>
+<label>API Key</label>
+<input type="password" id="cfg-apikey" placeholder="sk-..." autocomplete="off"/>
+<label>Model (optional)</label>
+<input type="text" id="cfg-model" placeholder="leave blank for default"/>
+<div class="modal-actions">
+<button class="modal-save" id="cfg-save" onclick="saveSettings()">Save</button>
+<span class="modal-status" id="cfg-status"></span>
+</div>
+</div>
+</div>
 <section class="mg">
 <article class="mc"><div class="label">Sessions</div><div class="val green" id="m-sessions">0</div></article>
 <article class="mc"><div class="label">Total Cost</div><div class="val orange" id="m-cost">$0.00</div></article>
@@ -184,6 +241,92 @@ var selectedId = null;
 var sessions = [];
 var costPoints = [];
 var replay = null;
+var insightsConfigured = false;
+var insightsCache = {};
+
+window.openSettings = function() {
+  document.getElementById('settings-modal').classList.add('open');
+  fetch('/api/settings/insights',{cache:'no-store'}).then(function(r){return r.json();}).then(function(data){
+    if(data && data.configured){
+      document.getElementById('cfg-provider').value = data.provider || 'anthropic';
+      if(data.model) document.getElementById('cfg-model').value = data.model;
+      document.getElementById('cfg-status').className = 'modal-status ok';
+      document.getElementById('cfg-status').textContent = 'Configured (' + (data.provider||'') + ')';
+      insightsConfigured = true;
+    }
+  }).catch(function(){});
+};
+
+window.closeSettings = function() {
+  document.getElementById('settings-modal').classList.remove('open');
+};
+
+window.saveSettings = function() {
+  var btn = document.getElementById('cfg-save');
+  var status = document.getElementById('cfg-status');
+  btn.disabled = true;
+  status.className = 'modal-status';
+  status.textContent = 'Validating...';
+  var body = {
+    provider: document.getElementById('cfg-provider').value,
+    apiKey: document.getElementById('cfg-apikey').value,
+    model: document.getElementById('cfg-model').value || undefined
+  };
+  fetch('/api/settings/insights',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+  .then(function(r){return r.json().then(function(d){return{ok:r.ok,data:d};});})
+  .then(function(res){
+    btn.disabled = false;
+    if(res.ok && res.data.status === 'ok'){
+      status.className = 'modal-status ok';
+      status.textContent = 'Saved! (' + (res.data.provider||'') + ' / ' + (res.data.model||'default') + ')';
+      insightsConfigured = true;
+      document.getElementById('cfg-apikey').value = '';
+      if(replay) renderReplay();
+    } else {
+      status.className = 'modal-status error';
+      status.textContent = res.data.message || 'Save failed';
+    }
+  }).catch(function(e){
+    btn.disabled = false;
+    status.className = 'modal-status error';
+    status.textContent = String(e);
+  });
+};
+
+window.generateInsight = function(sid) {
+  var panel = document.getElementById('insight-panel');
+  if(!panel) return;
+  panel.innerHTML = '<div class="insight-loading">Generating insight...</div>';
+  fetch('/api/session/' + encodeURIComponent(sid) + '/insights',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
+  .then(function(r){return r.json().then(function(d){return{ok:r.ok,data:d};});})
+  .then(function(res){
+    if(res.ok && res.data.status === 'ok' && res.data.insight){
+      insightsCache[sid] = res.data.insight;
+      renderInsightContent(panel, res.data.insight);
+    } else {
+      panel.innerHTML = '<div class="insight-error">' + esc(res.data.message || 'Failed to generate insight') + '</div>';
+    }
+  }).catch(function(e){
+    panel.innerHTML = '<div class="insight-error">' + esc(String(e)) + '</div>';
+  });
+};
+
+function renderInsightContent(panel, insight) {
+  var h = '<div class="insight-hd"><span class="insight-title">AI Insight</span><span class="insight-meta">' + esc(insight.provider||'') + ' / ' + esc(insight.model||'') + '</span></div>';
+  h += '<div class="insight-summary">' + esc(insight.summary) + '</div>';
+  if(insight.highlights && insight.highlights.length > 0){
+    h += '<div class="insight-section"><div class="insight-section-title">Highlights</div>';
+    insight.highlights.forEach(function(item){ h += '<div class="insight-item">' + esc(item) + '</div>'; });
+    h += '</div>';
+  }
+  if(insight.suggestions && insight.suggestions.length > 0){
+    h += '<div class="insight-section"><div class="insight-section-title">Suggestions</div>';
+    insight.suggestions.forEach(function(item){ h += '<div class="insight-item">' + esc(item) + '</div>'; });
+    h += '</div>';
+  }
+  if(insight.costNote) h += '<div class="insight-cost">' + esc(insight.costNote) + '</div>';
+  panel.innerHTML = h;
+}
 
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(new RegExp(DQ,'g'),'&quot;');
@@ -477,6 +620,17 @@ function renderReplay() {
     }
     h += '</div>';
   }
+  // AI insight panel
+  h += '<div class="insight-panel" id="insight-panel">';
+  var cachedInsight = insightsCache[replay.sessionId];
+  if (cachedInsight) {
+    // will be rendered after innerHTML set
+  } else if (insightsConfigured) {
+    h += '<div style="display:flex;align-items:center;justify-content:space-between"><span class="insight-title">AI Insight</span><button class="insight-gen-btn" data-sid="' + esc(replay.sessionId) + '">Generate Insight</button></div>';
+  } else {
+    h += '<div style="display:flex;align-items:center;justify-content:space-between"><span class="insight-title">AI Insight</span><span style="font-size:11px;color:var(--text-dim)">Configure an API key in settings to enable AI insights</span></div>';
+  }
+  h += '</div>';
   // prompt groups
   var groups = buildPromptGroups(replay.timeline, replay.commits);
   if (groups.length === 0) {
@@ -485,6 +639,14 @@ function renderReplay() {
     groups.forEach(function(g, i) { h += renderPromptCard(g, i + 1); });
   }
   area.innerHTML = h;
+  if (cachedInsight) {
+    var ip = document.getElementById('insight-panel');
+    if (ip) renderInsightContent(ip, cachedInsight);
+  }
+  var genBtn = area.querySelector('.insight-gen-btn[data-sid]');
+  if (genBtn) {
+    genBtn.addEventListener('click', function() { generateInsight(genBtn.getAttribute('data-sid')); });
+  }
 }
 
 function parseSummary(v) {
@@ -553,6 +715,9 @@ function loadSnapshot() {
 }
 
 function boot() {
+  fetch('/api/settings/insights',{cache:'no-store'}).then(function(r){return r.json();}).then(function(data){
+    if(data && data.configured) insightsConfigured = true;
+  }).catch(function(){});
   loadSnapshot().then(function(){
     if (typeof EventSource !== 'undefined') {
       var es = new EventSource('/api/sessions/stream');

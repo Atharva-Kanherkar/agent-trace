@@ -1,10 +1,12 @@
 import type { AgentSessionTrace, TimelineEvent } from "../../schema/src/types";
+import type { InsightsConfig, SessionInsight } from "../../schema/src/insights-types";
 
-export type ApiMethod = "GET";
+export type ApiMethod = "GET" | "POST";
 
 export interface ApiRequest {
   readonly method: ApiMethod;
   readonly url: string;
+  readonly body?: unknown;
 }
 
 export interface ApiRawHttpRequest {
@@ -67,12 +69,34 @@ export interface ApiErrorResponse {
   readonly message: string;
 }
 
+export interface ApiInsightsSettingsResponse {
+  readonly status: "ok";
+  readonly configured: boolean;
+  readonly provider?: string;
+  readonly model?: string;
+}
+
+export interface ApiInsightsSettingsSaveResponse {
+  readonly status: "ok";
+  readonly message: string;
+  readonly provider: string;
+  readonly model: string;
+}
+
+export interface ApiInsightsGenerateResponse {
+  readonly status: "ok";
+  readonly insight: SessionInsight;
+}
+
 export type ApiPayload =
   | ApiHealthResponse
   | ApiSessionListResponse
   | ApiSessionDetailResponse
   | ApiSessionTimelineResponse
   | ApiCostDailyResponse
+  | ApiInsightsSettingsResponse
+  | ApiInsightsSettingsSaveResponse
+  | ApiInsightsGenerateResponse
   | ApiErrorResponse;
 
 export interface ApiResponse {
@@ -95,10 +119,16 @@ export interface ApiDailyCostReader {
   listDailyCosts(limit?: number): Promise<readonly ApiDailyCostPoint[]>;
 }
 
+export interface ApiInsightsConfigAccessor {
+  getConfig(): InsightsConfig | undefined;
+  setConfig(config: InsightsConfig): void;
+}
+
 export interface ApiHandlerDependencies {
   readonly startedAtMs: number;
   readonly repository: ApiSessionRepository;
   readonly dailyCostReader?: ApiDailyCostReader;
+  readonly insightsConfigAccessor?: ApiInsightsConfigAccessor;
 }
 
 export interface ApiServerStartOptions {

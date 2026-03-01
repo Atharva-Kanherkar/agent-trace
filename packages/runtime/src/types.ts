@@ -63,6 +63,7 @@ export interface InMemoryRuntimeOptions {
   readonly startedAtMs?: number;
   readonly persistence?: RuntimePersistence;
   readonly dailyCostReader?: RuntimeDailyCostReader;
+  readonly insightsConfigAccessor?: import("../../api/src/types").ApiInsightsConfigAccessor;
 }
 
 export interface RuntimeDailyCostReader {

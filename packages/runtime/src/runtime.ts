@@ -59,6 +59,7 @@ export interface InMemoryRuntime extends RuntimeRequestHandlers {
   readonly collectorService: EnvelopeCollectorService;
   readonly persistence: RuntimePersistence;
   readonly dailyCostReader?: RuntimeDailyCostReader;
+  readonly insightsConfigAccessor?: import("../../api/src/types").ApiInsightsConfigAccessor;
 }
 
 function enrichEnvelopeWithCost(event: RuntimeEnvelope): RuntimeEnvelope {
@@ -93,12 +94,14 @@ function resolveRuntimeOptions(input: number | InMemoryRuntimeOptions | undefine
   readonly startedAtMs: number;
   readonly persistence: RuntimePersistence;
   readonly dailyCostReader: RuntimeDailyCostReader | undefined;
+  readonly insightsConfigAccessor: import("../../api/src/types").ApiInsightsConfigAccessor | undefined;
 } {
   if (typeof input === "number") {
     return {
       startedAtMs: input,
       persistence: new InMemoryRuntimePersistence(),
-      dailyCostReader: undefined
+      dailyCostReader: undefined,
+      insightsConfigAccessor: undefined
     };
   }
 
@@ -107,7 +110,8 @@ function resolveRuntimeOptions(input: number | InMemoryRuntimeOptions | undefine
   return {
     startedAtMs,
     persistence,
-    dailyCostReader: input?.dailyCostReader
+    dailyCostReader: input?.dailyCostReader,
+    insightsConfigAccessor: input?.insightsConfigAccessor
   };
 }
 
@@ -128,7 +132,8 @@ export function createInMemoryRuntime(input?: number | InMemoryRuntimeOptions): 
   const apiDependencies = {
     startedAtMs: options.startedAtMs,
     repository: sessionRepository,
-    ...(options.dailyCostReader !== undefined ? { dailyCostReader: options.dailyCostReader } : {})
+    ...(options.dailyCostReader !== undefined ? { dailyCostReader: options.dailyCostReader } : {}),
+    ...(options.insightsConfigAccessor !== undefined ? { insightsConfigAccessor: options.insightsConfigAccessor } : {})
   } as const;
 
   return {
@@ -138,6 +143,7 @@ export function createInMemoryRuntime(input?: number | InMemoryRuntimeOptions): 
     collectorService,
     persistence,
     ...(options.dailyCostReader !== undefined ? { dailyCostReader: options.dailyCostReader } : {}),
+    ...(options.insightsConfigAccessor !== undefined ? { insightsConfigAccessor: options.insightsConfigAccessor } : {}),
     handleCollectorRaw: collectorService.handleRaw,
     handleApiRaw: (request) => handleApiRawHttpRequest(request, apiDependencies)
   };
@@ -167,7 +173,8 @@ export async function startInMemoryRuntimeServers(
         createApiHttpHandler({
           startedAtMs: runtime.collectorDependencies.startedAtMs,
           repository: runtime.sessionRepository,
-          ...(runtime.dailyCostReader !== undefined ? { dailyCostReader: runtime.dailyCostReader } : {})
+          ...(runtime.dailyCostReader !== undefined ? { dailyCostReader: runtime.dailyCostReader } : {}),
+          ...(runtime.insightsConfigAccessor !== undefined ? { insightsConfigAccessor: runtime.insightsConfigAccessor } : {})
         })
       )
     : undefined;

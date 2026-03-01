@@ -110,6 +110,12 @@ CREATE TABLE IF NOT EXISTS pull_requests (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pull_requests_session ON pull_requests(session_id);
+
+CREATE TABLE IF NOT EXISTS instance_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
 
 function toJsonArray(value: readonly string[]): string {
@@ -415,6 +421,23 @@ export class SqliteClient
       totalCostUsd: Number((raw["total_cost_usd"] as number) ?? 0),
       sessionCount: Number((raw["sessions_count"] as number) ?? 0)
     }));
+  }
+
+  public getSetting(key: string): string | undefined {
+    const row = this.db.prepare(
+      "SELECT value FROM instance_settings WHERE key = ?"
+    ).get(key) as { value: string } | undefined;
+    return row?.value;
+  }
+
+  public upsertSetting(key: string, value: string): void {
+    this.db.prepare(`
+      INSERT INTO instance_settings (key, value, updated_at)
+      VALUES (?, ?, datetime('now'))
+      ON CONFLICT(key) DO UPDATE SET
+        value = excluded.value,
+        updated_at = excluded.updated_at
+    `).run(key, value);
   }
 
   public close(): void {
