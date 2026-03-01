@@ -48,6 +48,24 @@ That's it. Every Claude Code session is now captured automatically.
 
 ---
 
+### Images 
+
+<img width="1785" height="819" alt="image" src="https://github.com/user-attachments/assets/0761c530-cd35-4814-8107-72bf7df83f40" />
+
+<img width="1797" height="856" alt="image" src="https://github.com/user-attachments/assets/d972590c-8685-4331-9354-01a25a4014db" />
+
+<img width="1740" height="811" alt="image" src="https://github.com/user-attachments/assets/10cf89d6-8b52-4421-a48a-c2ff5fc4ead2" />
+
+<img width="1797" height="846" alt="image" src="https://github.com/user-attachments/assets/6bbf3b59-c8e7-45a3-b0ca-914167cb61bc" />
+
+
+
+
+
+
+
+
+
 ## How It Works
 
 agent-trace uses Claude Code's [hooks system](https://docs.anthropic.com/en/docs/claude-code/hooks). When you run `agent-trace init`, it registers hooks in `~/.claude/settings.json` that fire on every session event:
